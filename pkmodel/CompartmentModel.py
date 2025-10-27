@@ -4,6 +4,11 @@ from Flux import Flux
 from scipy.integrate import solve_ivp
 import numpy as np
 
+def combine_functions(*funcs):
+    def vector_func(x):
+        return np.array([f(x) for f in funcs])
+    return vector_func
+
 class CompartmentModel:
 
     def __init__(self, compartment_names, compartment_volumes):
