@@ -18,7 +18,7 @@ jobs:
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install flake8 pytest
+        pip install flake8 pytest pytest-cov
         pip install .
         # ^ Should look for setup.py file
     - name: Lint with flake8
@@ -27,14 +27,14 @@ jobs:
         # Output error in CI workflow log, but do not fail the workflow if there are linting errors
         # max-complexity=10 specifies the max number of paths through a function before a linting error is returned
         # max-line-length=127 sets the maximum allowed line length before a linting error is returned
-    - name: Run unit tests
+    - name: Run unit tests with coverage reporting
       run: |
-        pytest
-      
-
-# To do:
-# When packaging has been set up: 
-# - add our package to dependencies to automatically install? if that is something we need to do?
-# - pip install -r requirements.txt
-# Coverage testing
+        pytest --cov=./pkmodel --cov-report=xml
+        cat coverage.xml
+    - name: Upload coverage reports to Codecov
+      uses: codecov/codecov-action@v5
+      with:
+        token: ${{ secrets.CODECOV_TOKEN }}
+        fail_ci_if_error: true
+        files: coverage.xml
 

@@ -1,7 +1,5 @@
 import warnings
 from typing import Sequence, Callable
-#from Compartment import Compartment
-#from Flux import Flux
 from scipy.integrate import solve_ivp
 import numpy as np
 import matplotlib.pyplot as plt
@@ -156,3 +154,11 @@ class CompartmentModel:
 
         sol = solve_ivp(self.rhs, t_span, y0, t_eval=t_eval, vectorized=True)
         return sol
+
+
+
+  
+
+
+
+
