@@ -166,13 +166,13 @@ class CompartmentModel:
         """
         if not self.model_built:
             logging.info("No build detected, building the model from scratch...")
-            self.rhs = self.build()
+            self.build()
         else:
             if not self.model_changed_since_last_build:
                 logging.info("No changes detected since last build. Using the existing build.")
             else:
                 logging.info("Changes to the model detected since last build. Rebuilding the model...")
-                self.rhs = self.build()
+                self.build()
 
         sol = solve_ivp(self.rhs, t_span, y0, t_eval=t_eval, vectorized=False)
         da_dct = {}
