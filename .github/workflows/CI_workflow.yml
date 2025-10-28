@@ -21,9 +21,7 @@ jobs:
         pip install numpy scipy matplotlib pytest flake8
     - name: Lint with flake8
       run: |
-        flake8
-        continue-on-error: true
-        # Linting will not fail the build, but issues will be reported
+        flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
 
 # To do:
 # Lint
@@ -32,4 +30,6 @@ jobs:
 # When packaging has been set up: 
 # - add our package to dependencies to automatically install? if that is something we need to do?
 # - pip install -r requirements.txt
+
+#flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
 
