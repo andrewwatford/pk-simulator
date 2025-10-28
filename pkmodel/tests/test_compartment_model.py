@@ -36,7 +36,58 @@ class TestCompartmentModel:
             pk.CompartmentModel(
                 compartment_names   = ['central','peripheral'],
                 compartment_volumes = [1,2,3])
-    
+            
+    def test_add_flux_invalid_rate_law(self):
+        """
+        Tests that adding a flux with an invalid rate law raises a NotImplementedError.
+        """      
+        # Initialise compartment model
+        model = pk.CompartmentModel(
+            compartment_names   = ['central','peripheral'],
+            compartment_volumes = [22,7])
+        
+        # Try to add a flux with an invalid rate law
+        with pytest.raises(NotImplementedError):
+            model.add_flux(
+                from_compartment = 'central',
+                to_compartment   = 'peripheral',
+                rate_constant    = 1,
+                rate_law         = 'invalid_rate_law')
+            
+    def test_add_clearance_invalid_rate_law(self):
+        """
+        Tests that adding a clearance with an invalid rate law raises a NotImplementedError.
+        """      
+        # Initialise compartment model
+        model = pk.CompartmentModel(
+            compartment_names   = ['central','peripheral'],
+            compartment_volumes = [22,7])
+        
+        # Try to add a clearance with an invalid rate law
+        with pytest.raises(NotImplementedError):
+            model.add_clearance(
+                from_compartment = 'central',
+                rate_constant    = 1,
+                rate_law         = 'invalid_rate_law')
+            
+    def test_add_flux_invalid_nature(self):
+        """
+        Tests that adding a flux with an invalid nature raises a NotImplementedError.
+        """      
+        # Initialise compartment model
+        model = pk.CompartmentModel(
+            compartment_names   = ['central','peripheral'],
+            compartment_volumes = [22,7])
+        
+        # Try to add a flux with an invalid nature
+        with pytest.raises(NotImplementedError):
+            model.add_flux(
+                from_compartment = 'central',
+                to_compartment   = 'peripheral',
+                rate_constant    = 1,
+                rate_law         = 'first',
+                nature           = 'invalid_nature')
+
     @pytest.mark.parametrize(
         "compartment_names, compartment_volumes, flux_dict_list, clearance_dict_list, expected_matrix, expected_cst_vector",
         [
