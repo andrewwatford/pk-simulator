@@ -138,8 +138,8 @@ class CompartmentModel:
             return dydt
         
         self.model_changed_since_last_build = False
-        self.model_built = False
-        return rhs
+        self.model_built = True
+        self.rhs = rhs
     
     def run(self, t_span:Sequence[float], y0:Sequence[float], t_eval:Sequence[float]=None):
         if not self.model_built:
