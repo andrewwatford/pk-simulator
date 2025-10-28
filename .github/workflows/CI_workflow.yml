@@ -3,7 +3,7 @@ on:
   push: 
     # Currently runs on all branches
   pull_request:
-     # Currently runs on all branches
+    # Currently runs on all branches
   workflow_dispatch:
 
 jobs:
@@ -18,13 +18,12 @@ jobs:
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install numpy scipy matplotlib pytest
-    - name: mini test
+        pip install numpy scipy matplotlib pytest flake8
+    - name: Lint with flake8
       run: |
-        python -c "import numpy; import scipy; import matplotlib; print('All imports successful')"
+        flake8
 
 # To do:
-# Build python environment
 # Lint
 # Coverage testing
 # Run existing unit tests
