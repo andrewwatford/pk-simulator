@@ -14,6 +14,7 @@ pk-model is a Python library for creating, solving, and visualising the solution
      pip install pk-model
 
 ## Example analysis script:
+---
      from pkmodel import CompartmentModel
      model = CompartmentModel(['Central', 'Peripheral'], [3.0, 5.0])
      model.add_flux('Central', 'Peripheral', rate_constant=0.5, rate_law='first')
@@ -24,3 +25,6 @@ pk-model is a Python library for creating, solving, and visualising the solution
      sol = model.build(t_span, y0, t_eval=np.linspace(0, 10, 100)) 
      print(sol.t)
      print(sol.y)
+
+
+
