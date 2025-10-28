@@ -39,8 +39,8 @@ class TestExamples:
         # Simulate the model
         t_span = [0, 10]
         y0 = [ic]
-        time_points = np.linspace(*t_span, int(1e4))  # Time points
-        results = model.run(t_span, y0, time_points)
+        results = model.run(t_span, y0)
+        time_points = results.time.data
 
         # Define the expected result
         expected = ic * np.exp(- r_C * time_points) + (r_D / r_C) * (1 - np.exp(- r_C * time_points))
