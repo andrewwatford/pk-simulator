@@ -1,6 +1,6 @@
-# pk-modelling Python Library
+# pk-model Python Library
 
-pk-modelling is a Python library for creating, solving, and visualising the solution of pharmokinetic models. 
+pk-model is a Python library for creating, solving, and visualising the solution of pharmokinetic models. 
 ## Features
 - Specify compartments and volumes
 - Add fluxes between compartments
@@ -11,7 +11,7 @@ pk-modelling is a Python library for creating, solving, and visualising the solu
 
 ## Installation
 ### The latest release can be installed via pip
-     pip install pk-simulator
+     pip install pk-model
 
 ## Example analysis script:
      from pkmodel import CompartmentModel

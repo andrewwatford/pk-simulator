@@ -54,36 +54,15 @@ class CompartmentModel:
             warnings.warn("Only one dosage per compartment. Overwriting with most recent dosage.")
         self.dosage_lst[compartment_idx] = dosage_func
         self.dosage_added[compartment_idx] = True
-    def build(self, t_span, y0, t_eval=None):
+
+    def build(self):
+        dosage_func_vector = combine_functions(*self.dosage_lst)
         def rhs(t, y):
-            dydt = self.rhs_matrix @ y + self.rhs_cst_vector + combine_functions(*self.dosage_lst)(t)
+            dydt = self.rhs_matrix @ y + self.rhs_cst_vector + dosage_func_vector(t)
             return dydt
+        return rhs
+    
+    def run(self, t_span, y0, t_eval=None):
+        rhs = self.build()
         sol = solve_ivp(rhs, t_span, y0, t_eval=t_eval, vectorized=True)
         return sol
-
-
-if __name__ == "__main__":   
-    model = CompartmentModel(['Central', 'Peripheral'], [3.0, 5.0])
-    model.add_flux('Central', 'Peripheral', rate_constant=0.5, rate_law='first')
-    model.add_clearance('Central', rate_constant=0.3, rate_law='first')
-    model.add_dosage('Central', lambda t: 10 if t < 1 else 0)
-    t_span = (0, 10)
-    y0 = [0, 0]
-    sol = model.build(t_span, y0, t_eval=np.linspace(0, 10, 100))
-    print(sol.t)
-    print(sol.y)
-
-
-plt.plot(sol.t, sol.y[0, :], label=model.compartment_names[0])
-plt.plot(sol.t, sol.y[1, :], label=model.compartment_names[1])
-plt.xlabel('Time')
-plt.ylabel('Concentration')
-plt.legend()
-plt.show()
-
-
-  
-
-
-
-
