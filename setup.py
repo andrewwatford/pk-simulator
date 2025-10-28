@@ -45,11 +45,11 @@ setup(
 
     license='MIT license',
 
-    author='Andrew Watford',
+    author=['Andrew Watford', 'Salma Amin', 'Stas Kurass', 'Ambre Brabant'],
 
-    author_email='andrew.watford@dtc.ox.ac.uk',
+    author_email=['andrew.watford@dtc.ox.ac.uk', 'salma.amin@dtc.ox.ac.uk', 'stanislavs.kurass@dtc.ox.ac.uk', 'ambre.brabant@dtc.ox.ac.uk'],
 
-    maintainer='Andrew Watford',
+    maintainer=['Andrew Watford', 'Salma Amin', 'Stas Kurass', 'Ambre Brabant'],
 
     maintainer_email='andrew.watford@dtc.ox.ac.uk',
 
