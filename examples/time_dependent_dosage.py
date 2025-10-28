@@ -6,8 +6,10 @@ def my_dosage(t):
     # custom dosage that spikes every three time units
     return 10 * np.cos(np.pi * t / 3)**10
 
+# Define model
 volumes_dict = {'central': 22, 'peripheral': 7}
 model = CompartmentModel(compartment_names = list(volumes_dict.keys()), compartment_volumes = list(volumes_dict.values()))
+# Adding fluxes, dosage, and clearances
 model.add_flux(from_compartment = 'central', 
                to_compartment = 'peripheral', 
                rate_law = 'first', # or 'zero'
