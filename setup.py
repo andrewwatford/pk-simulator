@@ -45,15 +45,15 @@ setup(
 
     license='MIT license',
 
-    # author='',
+    author='Andrew Watford',
 
-    # author_email='',
+    author_email='andrew.watford@dtc.ox.ac.uk',
 
-    maintainer='Martin Robinson',
+    maintainer='Andrew Watford',
 
-    maintainer_email='martin.robinson@cs.ox.ac.uk',
+    maintainer_email='andrew.watford@dtc.ox.ac.uk',
 
-    url='https://github.com/SABS-R3/2020-software-engineering-projects-pk',
+    url='https://github.com/andrewwatford/pk-simulator',
 
     # Packages to include
     packages=find_packages(include=('pkmodel', 'pkmodel.*')),
