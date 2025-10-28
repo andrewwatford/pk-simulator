@@ -125,6 +125,6 @@ class CompartmentModel:
     
     def run(self, t_span, y0, t_eval=None):
         rhs = self.build()
-        sol = solve_ivp(rhs, t_span, y0, t_eval=t_eval, vectorized=True)
+        sol = solve_ivp(rhs, t_span, y0, t_eval=t_eval, vectorized=False)
         return sol
     
