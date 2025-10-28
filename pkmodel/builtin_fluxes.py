@@ -1,12 +1,30 @@
-def constant_dose(t, rate = 0.0):
+def constant_dose(rate):
     """
-    Returns a constant dose rate.
+    Returns a function that doses at a constant rate.
     
     Parameters
     ----------
-    t : float
-        Time. [time]
     rate : float
         Dose rate. [mass/time]
+
+    Returns
+    -------
+    dose_func : function
+        Function that returns the dose rate at time t. [mass/time]
     """
-    return rate
+    def dose_func(t):
+        """
+        Function that returns the dose rate at time t.
+
+        Parameters
+        ----------
+        t : float
+            Time. [time]
+
+        Returns
+        -------
+        rate : float
+            Dose rate. [mass/time]
+        """
+        return rate
+    return dose_func

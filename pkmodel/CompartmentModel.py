@@ -90,7 +90,7 @@ class CompartmentModel:
 
         if rate_law == 'first':
             self.rhs_matrix[source_idx, source_idx] += - rate_constant / source_volume
-        if rate_law == 'zero':
+        elif rate_law == 'zero':
             self.rhs_cst_vector[source_idx] += - rate_constant
         else:
             raise NotImplementedError("Wnly first or zeroth order clearances are supported!")
@@ -114,31 +114,31 @@ class CompartmentModel:
         self.dosage_lst[compartment_idx] = dosage_func
         self.dosage_added[compartment_idx] = True
 
-    def build(self, t_span, y0, t_eval=None):
-        """Build and ODE system to be solved with scipy.integrate.solve_ivp
 
-        Args:
-            t_span: integration interval.
-            y0: Initial state vector (length n).
-            t_eval: Optional times at which to store the computed solution.
-
-        Returns:
-            O
-
-        """
+    def build(self):
+        dosage_func_vector = combine_functions(*self.dosage_lst)
+        """Build and ODE system to be solved with scipy.integrate.solve_ivp"""
         def rhs(t, y):
-            dydt = self.rhs_matrix @ y + self.rhs_cst_vector + combine_functions(*self.dosage_lst)(t)
+            dydt = self.rhs_matrix @ y + self.rhs_cst_vector + dosage_func_vector(t)
             return dydt
+        return rhs
+    
+    def run(self, t_span, y0, t_eval=None):
+        rhs = self.build()
         sol = solve_ivp(rhs, t_span, y0, t_eval=t_eval, vectorized=True)
         return sol
 
 
-plt.plot(sol.t, sol.y[0, :], label=model.compartment_names[0])
-plt.plot(sol.t, sol.y[1, :], label=model.compartment_names[1])
-plt.xlabel('Time')
-plt.ylabel('Concentration')
-plt.legend()
-plt.show()
+if __name__ == "__main__":   
+    model = CompartmentModel(['Central', 'Peripheral'], [3.0, 5.0])
+    model.add_flux('Central', 'Peripheral', rate_constant=0.5, rate_law='first')
+    model.add_clearance('Central', rate_constant=0.3, rate_law='first')
+    model.add_dosage('Central', lambda t: 10 if t < 1 else 0)
+    t_span = (0, 10)
+    y0 = [0, 0]
+    sol = model.build(t_span, y0, t_eval=np.linspace(0, 10, 100))
+    print(sol.t)
+    print(sol.y)
 
 
   
