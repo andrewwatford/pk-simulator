@@ -81,7 +81,7 @@ class TestCompartmentModel:
     @pytest.mark.parametrize(
         "compartment_names, compartment_volumes, flux_dict_list, clearance_dict_list, expected_matrix, expected_cst_vector",
         [
-            # Test case 1: two compartments, one first-order flux, no clearances
+            # Test case 1: two compartments, one first-order diffusive flux
             (   
                 ['central', 'peripheral'],
                 [22, 7],
@@ -89,19 +89,32 @@ class TestCompartmentModel:
                     'from_compartment': 'central',
                     'to_compartment': 'peripheral',
                     'rate_constant': 1,
-                    'rate_law': 'first'}],
-                [{
-                    'from_compartment': 'central',
-                    'rate_constant': 0,
-                    'rate_law': 'zero'
-                }],
+                    'rate_law': 'first',
+                    'nature': 'diffusive'}],
+                [],
                 [
                 [-1/22, 1/7],
                 [1/22, -1/7]
                 ],
                 [0, 0]
             ),
-            # Test case 2: two compartments, one first-order flux, one first-order clearance,
+            # Test case 2: two compartments, one first-order clearance
+            (   
+                ['central', 'peripheral'],
+                [22, 7],
+                [],
+                [{
+                    'from_compartment': 'central',
+                    'rate_constant': 2,
+                    'rate_law': 'first'
+                }],
+                [
+                [-2/22, 0],
+                [0, 0]
+                ],
+                [0, 0]
+            ),
+            # Test case 3: two compartments, one first-order one-way flux
             (   
                 ['central', 'peripheral'],
                 [22, 7],
@@ -109,25 +122,116 @@ class TestCompartmentModel:
                     'from_compartment': 'central',
                     'to_compartment': 'peripheral',
                     'rate_constant': 1,
-                    'rate_law': 'first'},
-                    ],
-                [{
-                    'from_compartment': 'central',
-                    'rate_constant': 2,
-                    'rate_law': 'first'
-                }],
+                    'rate_law': 'first',
+                    'nature': 'one-way'}],
+                [],
                 [
-                [-3/22, 1/7],
-                [1/22, -1/7]
+                [-1/22, 0],
+                [1/22, 0]
                 ],
                 [0, 0]
             ),
-            # Test case 3: subcutaneous dosing. three compartments, 
-            # Try to make edge cases for 2d and 3d
-            # Make tests for 3d
+            # Test case 4: two compartments, one zero-order flux
+            (   
+                ['central', 'peripheral'],
+                [22, 7],
+                [{
+                    'from_compartment': 'central',
+                    'to_compartment': 'peripheral',
+                    'rate_constant': 1,
+                    'rate_law': 'zero'}],
+                [],
+                [
+                [0, 0],
+                [0, 0]
+                ],
+                [-1, 1]
+            ),
+            # Test case 5: two compartments, one zero-order clearance
+            (   
+                ['central', 'peripheral'],
+                [22, 7],
+                [],
+                [{
+                    'from_compartment': 'central',
+                    'rate_constant': 2,
+                    'rate_law': 'zero'
+                }],
+                [
+                [0, 0],
+                [0, 0]
+                ],
+                [-2, 0]
+            ),
+            # Test case 6: intravenous bolus model in instructions (dose = 0)
+            # Has one first-order diffusive flux between central and peripheral compartments
+            # And one first-order clearance from central compartment
+            (   
+                ['central', 'peripheral'],
+                [22, 7],
+                [{
+                    'from_compartment': 'central',
+                    'to_compartment': 'peripheral',
+                    'rate_constant': 3,
+                    'rate_law': 'first',
+                    'nature': 'diffusive'
+                }],
+                [{
+                    'from_compartment': 'central',
+                    'rate_constant': 5,
+                    'rate_law': 'first'
+                }],
+                [
+                [-8/22, 3/7],
+                [3/22, -3/7]
+                ],
+                [0, 0]
+            ),
+            # Test case 7: subcutaneous dosing model in instructions. Dosage = 0
+            (   
+                ['absorber','central', 'peripheral'],
+                [5, 22, 7],
+                [{
+                    'from_compartment': 'absorber',
+                    'to_compartment': 'central',
+                    'rate_constant': 1,
+                    'rate_law': 'first',
+                    'nature': 'one-way'
+                }, 
+                {
+                    'from_compartment': 'central',
+                    'to_compartment': 'peripheral',
+                    'rate_constant': 5,
+                    'rate_law': 'first',
+                    'nature': 'diffusive'
+                }],
+                [{
+                    'from_compartment': 'central',
+                    'rate_constant': 3,
+                    'rate_law': 'first'
+                }],
+                [
+                [-1/5, 0, 0],
+                [1/5, -8/22, 5/7], 
+                [0, 5/22, -5/7]
+                ],
+                [0, 0, 0]
+            ),
+            # Test case 8: no fluxes or clearances
+            (   
+                ['absorber','central', 'peripheral'],
+                [5, 22, 7],
+                [],
+                [],
+                [
+                [0, 0, 0],
+                [0, 0, 0], 
+                [0, 0, 0]
+                ],
+                [0, 0, 0]
+            ),
         ]
     )
-
     def test_matrix_and_constant_vector(self, compartment_names, compartment_volumes, flux_dict_list, clearance_dict_list, expected_matrix, expected_cst_vector):
         """
         Tests that the RHS matrix and constant vector are correctly constructed
