@@ -1,6 +1,7 @@
 import warnings
 from typing import Sequence, Callable
 from scipy.integrate import solve_ivp
+import matplotlib.pyplot as plt
 import numpy as np
 import xarray as xr
 import logging
@@ -179,6 +180,26 @@ class CompartmentModel:
             da_dct[name] = xr.DataArray(data = sol.y[idx, :], coords = {'time': sol.t})
         ds = xr.Dataset(da_dct)
         return ds
+    
+    def plot_all(self, ds: xr.Dataset):
+        """Plot all compartments from the output dataset.
+
+        ### Args:
+            - ds: XArray.Dataset. The output dataset from a model run.
+
+        ### Returns:
+            - fig: matplotlib.figure.Figure: The figure object containing the plots.
+            - axs: np.ndarray: The array of axes objects for each compartment plot.
+        """
+        fig, axs = plt.subplots(self.num_compartments, 1, sharex=True)
+        for idx, name in enumerate(self.compartment_names):
+            ds[name].plot(ax=axs[idx])
+            axs[idx].set_ylabel(f'$q_{{{name}}}$')
+            if idx < self.num_compartments - 1:
+                axs[idx].set_xlabel(None)
+        axs[-1].set_xlabel('$t$')
+        axs[0].set_title('Compartment masses over time')
+        return fig, axs
 
 
 
