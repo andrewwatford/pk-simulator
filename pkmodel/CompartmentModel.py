@@ -1,6 +1,4 @@
 import warnings
-from Compartment import Compartment
-from Flux import Flux
 from scipy.integrate import solve_ivp
 import numpy as np
 
