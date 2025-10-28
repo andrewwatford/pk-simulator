@@ -2,7 +2,7 @@ import warnings
 from typing import Sequence, Callable
 from scipy.integrate import solve_ivp
 import numpy as np
-import matplotlib.pyplot as plt
+import xarray as xr
 import logging
 
 
@@ -57,7 +57,7 @@ class CompartmentModel:
         self.model_built = False 
         self.model_changed_since_last_build = True
 
-    def add_flux(self, from_compartment: str, to_compartment: str, rate_constant: float, rate_law: str = "first"):
+    def add_flux(self, from_compartment: str, to_compartment: str, rate_constant: float, rate_law: str = "first", nature: str = 'diffusive'):
         """Add a flux between two compartments
 
         ### Args:
@@ -65,22 +65,28 @@ class CompartmentModel:
             to_compartment: Destination compartment name.
             rate_constant: Rate constant (units depend on model).
             rate_law: 'first' for first order (proportional to concentration) or 'zero' for zeroth (constant).
+            nature: 'diffusive' for bidirectional flux proportional to concentration gradient, 'one-way' for unidirectional flux.
         """
         source_idx = self.compartment_names.index(from_compartment)
         source_volume = self.compartment_volumes[source_idx]
         dest_idx = self.compartment_names.index(to_compartment)
         dest_volume = self.compartment_volumes[dest_idx]
 
+        if nature not in ['diffusive', 'one-way']:
+            raise NotImplementedError("Only 'diffusive' and 'one-way' flux natures are supported!")
+        if rate_law not in ['first', 'zero']:
+            raise NotImplementedError("Only first or zeroth order fluxes are supported!")
+
         if rate_law == 'first':
             self.rhs_matrix[source_idx, source_idx] += - rate_constant / source_volume
-            self.rhs_matrix[source_idx, dest_idx]   += + rate_constant / dest_volume
             self.rhs_matrix[dest_idx, source_idx]   += + rate_constant / source_volume
-            self.rhs_matrix[dest_idx, dest_idx]     += - rate_constant / dest_volume
+            if nature == 'diffusive':
+                self.rhs_matrix[source_idx, dest_idx]   += + rate_constant / dest_volume
+                self.rhs_matrix[dest_idx, dest_idx]     += - rate_constant / dest_volume
         elif rate_law == 'zero':
+            warnings.warn("Zeroth order fluxes are supported, but implementation is non-physical.")
             self.rhs_cst_vector[source_idx] += - rate_constant
             self.rhs_cst_vector[dest_idx]   += + rate_constant
-        else:
-            raise NotImplementedError("Only first or zeroth order fluxes are supported!")
         
         self.model_changed_since_last_build = True # System state has changed, model needs to be rebuilt before running
         
@@ -99,6 +105,7 @@ class CompartmentModel:
         if rate_law == 'first':
             self.rhs_matrix[source_idx, source_idx] += - rate_constant / source_volume
         elif rate_law == 'zero':
+            warnings.warn("Zeroth order fluxes are supported, but implementation is non-physical.")
             self.rhs_cst_vector[source_idx] += - rate_constant
         else:
             raise NotImplementedError("Only first or zeroth order clearances are supported!")
@@ -142,6 +149,20 @@ class CompartmentModel:
         self.rhs = rhs
     
     def run(self, t_span:Sequence[float], y0:Sequence[float], t_eval:Sequence[float]=None):
+        """Solves (and builds, if self.build() has not been called previously) the ODE system.
+
+        ### Args:
+            - t_span: Sequence[float]. A two-element sequence with the start and end times.
+            - y0: Sequence[float]. The initial condition for the dynamical system. Order of
+                variables matches the order of the compartments specified in CompartmentModel
+                construction.
+            - t_eval: Sequence[float] (default None). The sequence of time points to solve the
+                system on.
+
+        ### Returns:
+            - ds: XArray.Dataset. An XArray Dataset object containing the labelled output of the
+                simulation.
+        """
         if not self.model_built:
             logging.info("No build detected, building the model from scratch...")
             self.rhs = self.build()
@@ -153,7 +174,11 @@ class CompartmentModel:
                 self.rhs = self.build()
 
         sol = solve_ivp(self.rhs, t_span, y0, t_eval=t_eval, vectorized=False)
-        return sol
+        da_dct = {}
+        for idx, name in enumerate(self.compartment_names):
+            da_dct[name] = xr.DataArray(data = sol.y[idx, :], coords = {'time': sol.t})
+        ds = xr.Dataset(da_dct)
+        return ds
 
 
 
