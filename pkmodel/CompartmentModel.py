@@ -43,7 +43,7 @@ class CompartmentModel:
         source_volume = self.compartment_volumes[source_idx]
         if rate_law == 'first':
             self.rhs_matrix[source_idx, source_idx] += - rate_constant / source_volume
-        if rate_law == 'zero':
+        elif rate_law == 'zero':
             self.rhs_cst_vector[source_idx] += -rate_constant
         else:
             raise NotImplementedError("We only support first or zero order clearances!")
