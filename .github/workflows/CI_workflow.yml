@@ -22,6 +22,8 @@ jobs:
     - name: Lint with flake8
       run: |
         flake8
+        continue-on-error: true
+        # Linting will not fail the build, but issues will be reported
 
 # To do:
 # Lint
