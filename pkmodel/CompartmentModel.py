@@ -1,10 +1,11 @@
 import warnings
-from typing import Sequence
+from typing import Sequence, Callable
 #from Compartment import Compartment
 #from Flux import Flux
 from scipy.integrate import solve_ivp
 import numpy as np
 import matplotlib.pyplot as plt
+import logging
 
 
 def combine_functions(*funcs):
@@ -31,6 +32,10 @@ class CompartmentModel:
         rhs_cst_vector (np.ndarray): Constant vector contribution to RHS (shape n).
         dosage_added (list[bool]): Flags whether a dosage function was added per compartment.
         dosage_lst (list[Callable[[float], float]]): Per-compartment dosage functions.
+        model_built (bool): Flag to track if the model has been built.
+        model_changed_since_last_build (bool): Flag to track if changes have been made to the model
+            in which case it needs to be rebult.
+        rhs (Callable[[float, np.ndarray], np.ndarray]): RHS function that computes dydt = f(t, y).
     """
     def __init__(self, compartment_names:(Sequence[str]), compartment_volumes:(Sequence[float])):
         """Initialise the compartment model.
@@ -51,7 +56,10 @@ class CompartmentModel:
         self.dosage_added = [False for c in compartment_names] # Keeps track of which compartments have a dosage specified
         self.dosage_lst = [lambda t: 0 for c in compartment_names] # Stores all the dosage functions
 
-    def add_flux(self, from_compartment, to_compartment, rate_constant, rate_law='first'):
+        self.model_built = False 
+        self.model_changed_since_last_build = True
+
+    def add_flux(self, from_compartment: str, to_compartment: str, rate_constant: float, rate_law: str = "first"):
         """Add a flux between two compartments
 
         ### Args:
@@ -76,7 +84,9 @@ class CompartmentModel:
         else:
             raise NotImplementedError("Only first or zeroth order fluxes are supported!")
         
-    def add_clearance(self, from_compartment, rate_constant, rate_law='first'):
+        self.model_changed_since_last_build = True # System state has changed, model needs to be rebuilt before running
+        
+    def add_clearance(self, from_compartment: str, rate_constant: float, rate_law: str = "first"):
         """Add clearance from a compartment (out of system).
 
         Args:
@@ -93,9 +103,11 @@ class CompartmentModel:
         elif rate_law == 'zero':
             self.rhs_cst_vector[source_idx] += - rate_constant
         else:
-            raise NotImplementedError("Wnly first or zeroth order clearances are supported!")
+            raise NotImplementedError("Only first or zeroth order clearances are supported!")
+        
+        self.model_changed_since_last_build = True # System state has changed, model needs to be rebuilt before running
     
-    def add_dosage(self, compartment_name, dosage_func):
+    def add_dosage(self, compartment_name: str, dosage_func: Callable[[float], float]):
         """Add a time-dependent dosage function to a compartment.
 
         Args:
@@ -114,35 +126,33 @@ class CompartmentModel:
         self.dosage_lst[compartment_idx] = dosage_func
         self.dosage_added[compartment_idx] = True
 
+        self.model_changed_since_last_build = True # System state has changed, model needs to be rebuilt before running
 
     def build(self):
+        """Build and ODE system to be solved with scipy.integrate.solve_ivp
+        
+        ### Returns:
+        Callable[[float, np.ndarray], np.ndarray]: RHS function that computes dydt = f(t, y).
+        """
         dosage_func_vector = combine_functions(*self.dosage_lst)
-        """Build and ODE system to be solved with scipy.integrate.solve_ivp"""
         def rhs(t, y):
             dydt = self.rhs_matrix @ y + self.rhs_cst_vector + dosage_func_vector(t)
             return dydt
+        
+        self.model_changed_since_last_build = False
+        self.model_built = False
         return rhs
     
-    def run(self, t_span, y0, t_eval=None):
-        rhs = self.build()
-        sol = solve_ivp(rhs, t_span, y0, t_eval=t_eval, vectorized=True)
+    def run(self, t_span:Sequence[float], y0:Sequence[float], t_eval:Sequence[float]=None):
+        if not self.model_built:
+            logging.info("No build detected, building the model from scratch...")
+            self.rhs = self.build()
+        else:
+            if not self.model_changed_since_last_build:
+                logging.info("No changes detected since last build. Using the existing build.")
+            else:
+                logging.info("Changes to the model detected since last build. Rebuilding the model...")
+                self.rhs = self.build()
+
+        sol = solve_ivp(self.rhs, t_span, y0, t_eval=t_eval, vectorized=True)
         return sol
-
-
-if __name__ == "__main__":   
-    model = CompartmentModel(['Central', 'Peripheral'], [3.0, 5.0])
-    model.add_flux('Central', 'Peripheral', rate_constant=0.5, rate_law='first')
-    model.add_clearance('Central', rate_constant=0.3, rate_law='first')
-    model.add_dosage('Central', lambda t: 10 if t < 1 else 0)
-    t_span = (0, 10)
-    y0 = [0, 0]
-    sol = model.build(t_span, y0, t_eval=np.linspace(0, 10, 100))
-    print(sol.t)
-    print(sol.y)
-
-
-  
-
-
-
-
