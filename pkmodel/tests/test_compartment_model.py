@@ -1,7 +1,12 @@
-import unittest
+import pytest
 import pkmodel as pk
 
-class ComparmentTest(unittest.TestCase):
+@pytest.fixture()
+def test_model():
+    pass
+
+
+class TestCompartment:
     """
     Tests the CompartmentModel class.
     """
@@ -19,11 +24,7 @@ class ComparmentTest(unittest.TestCase):
             compartment_volumes = list(compartments_dict.values()))
         
         # Check if attributes are stored correctly in a model object
-        self.assertEqual(
-            model.compartment_names,
-            ["central", "peripheral"])
-        self.assertEqual(
-            model.compartment_volumes,
-            [22, 7])
+        assert model.compartment_names == ["central", "peripheral"]
+        assert model.compartment_volumes == [22, 7]
         
     
