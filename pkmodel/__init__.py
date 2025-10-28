@@ -7,4 +7,6 @@ of Parmokinetic (PK) models
 # Import version info
 from .version_info import VERSION_INT, VERSION  # noqa
 
-from pkmodel.CompartmentModel import CompartmentModel
+# Import main classes
+from .CompartmentModel import CompartmentModel    # noqa
+from .builtin_fluxes import constant_dose   # noqa
