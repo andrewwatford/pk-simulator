@@ -152,7 +152,7 @@ class CompartmentModel:
                 logging.info("Changes to the model detected since last build. Rebuilding the model...")
                 self.rhs = self.build()
 
-        sol = solve_ivp(self.rhs, t_span, y0, t_eval=t_eval, vectorized=True)
+        sol = solve_ivp(self.rhs, t_span, y0, t_eval=t_eval, vectorized=False)
         return sol
 
 
