@@ -1,7 +1,5 @@
 import warnings
 from typing import Sequence
-#from Compartment import Compartment
-#from Flux import Flux
 from scipy.integrate import solve_ivp
 import numpy as np
 import matplotlib.pyplot as plt
