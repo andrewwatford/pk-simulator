@@ -2,14 +2,19 @@ import unittest
 import pkmodel as pk
 
 
-class ModelTest(unittest.TestCase):
+class ComparmentTest(unittest.TestCase):
     """
-    Tests the :class:`Model` class.
+    Tests the Compartment class.
     """
     def test_create(self):
         """
-        Tests Model creation.
+        Tests Compartment creation.
         """
-        model = pk.Model()
-        self.assertEqual(model.value, 42)
-
+        compartment = pk.Compartment(
+            name = "central",
+            volume = 25,
+            dosage = None,
+            clearance = None
+        )
+        
+        self.assertEqual(compartment.name, "central")
