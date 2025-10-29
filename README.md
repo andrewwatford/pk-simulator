@@ -10,10 +10,10 @@ pk-model is a Python library for creating, solving, and visualising the solution
 - Plot the results
 
 ## Installation
-### The latest release can be installed via pip
+### The library can be installed via pip
      pip install pk-model
 
-## Example analysis script:
+## Example Script:
 ---
      * Needs to be updated with a better example
      from pkmodel import CompartmentModel
