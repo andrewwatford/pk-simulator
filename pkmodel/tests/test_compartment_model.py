@@ -4,6 +4,7 @@ import logging
 import pkmodel as pk
 from pkmodel.builtin_fluxes import constant_dose
 import numpy as np
+from pydantic import ValidationError
 
 @pytest.fixture()
 def config_1():
@@ -305,6 +306,41 @@ class TestCompartmentModel:
             cmodel_1.add_dosage(pk.Dosage(id='test',
                                           dest=cmodel_1.compartments['central'],
                                           regime='invalid'))
+            
+    def test_invalid_config(self):
+        """
+        Tests trying to create a model from an invalid config.
+        """
+
+        with pytest.raises(ValidationError):
+            config = {
+                "compartment": {
+                    "central":    22.0,
+                    "peripheral": 7.0,
+                },
+
+                "fluxes": {
+                    "c_p": {
+                        "source":"central",
+                        "dest": "peripheral",
+                        "rate_constant": 5.0,
+                        "nature":"bidirectional",
+                        "rate_law":"first"
+                    }
+                },
+
+                "clearances": None,
+
+                "dosages": {
+                    "central_dosage":{
+                        "dest":"central",
+                        "regime":"constant",
+                        "rate_constant": 1.0,
+                    }
+                }
+            }
+            pk.CompartmentModel.from_config(config)
+
 
     @pytest.mark.parametrize(
         "comp_dict, flux_dict, clearance_dict, expected_matrix, expected_cst_vector",
