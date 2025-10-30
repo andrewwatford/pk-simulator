@@ -46,7 +46,6 @@ def config_1():
 
     return config
 
-
 @pytest.fixture()
 def cmodel_1(config_1):
     """
@@ -54,6 +53,58 @@ def cmodel_1(config_1):
     """
     cmodel = pk.CompartmentModel.from_config(config_1)
     return cmodel
+
+@pytest.fixture()
+def comp_1():
+    """
+    Fixture for a Compartment instance
+    """
+    return pk.Compartment(id="central", volume=22.0)
+
+@pytest.fixture()
+def comp_2():
+    """
+    Fixture for a second Compartment instance
+    """
+    return pk.Compartment(id="peripheral", volume=7.0)
+
+@pytest.fixture()
+def flux_1(comp_1, comp_2):
+    """
+    Fixture for a Flux instance
+    Do not set scope to module, session, or class - because fixture will get modified
+    by several different unit tests
+    """
+    return pk.Flux(id="c_p",
+                    source=comp_1,
+                    dest=comp_2,
+                    rate_constant=5.0,
+                    nature="bidirectional",
+                    rate_law="first")
+
+@pytest.fixture()
+def clearance_1(comp_1):
+    """
+    Fixture for a Clearance instance
+    Do not set scope to module, session, or class - because fixture will get modified
+    by several different unit tests
+    """
+    return pk.Clearance(id = 'central_clearance',
+                        source=comp_1,
+                        rate_constant= 5.0,
+                        rate_law="first")
+
+@pytest.fixture()
+def dosage_1(comp_1):
+    """
+    Fixture for a Dosage instance
+    Do not set scope to module, session, or class - because fixture will get modified
+    by several different unit tests
+    """
+    return pk.Dosage(id='central_dosage',
+                     dest=comp_1,
+                     regime="constant",
+                     rate_constant=1.0)
 
 
 class TestCompartmentModel:
@@ -93,43 +144,38 @@ class TestCompartmentModel:
             "rate_law_to_use, nature_to_use",
             [('first', 'bidirectional'), ('first', 'unidirectional'), ('zero', 'bidirectional')]
     )
-    def test_add_flux(self, cmodel_1, rate_law_to_use, nature_to_use):
+    def test_add_flux(self, cmodel_1, flux_1, rate_law_to_use, nature_to_use):
         """
         Check .add_flux method works correctly
         """
         cmodel_1.model_changed_since_last_build = False
-        cmodel_1.add_flux(pk.Flux(id='test_flux',
-                            source = cmodel_1.compartments['central'],
-                            dest = cmodel_1.compartments['peripheral'],
-                            rate_constant = 1,
-                            rate_law = rate_law_to_use,
-                            nature = nature_to_use))
+        flux_1.id = 'test_flux'
+        flux_1.rate_law = rate_law_to_use
+        flux_1.nature = nature_to_use
+        cmodel_1.add_flux(flux_1)
         assert 'test_flux' in cmodel_1.fluxes.keys()
         assert cmodel_1.fluxes['test_flux'].rate_law == rate_law_to_use
         assert cmodel_1.fluxes['test_flux'].nature == nature_to_use
         assert cmodel_1.fluxes['test_flux'].source.id == 'central'
         assert cmodel_1.fluxes['test_flux'].dest.id == 'peripheral'
-        assert cmodel_1.fluxes['test_flux'].rate_constant == 1
+        assert cmodel_1.fluxes['test_flux'].rate_constant == 5
         assert cmodel_1.model_changed_since_last_build == True
 
     @pytest.mark.parametrize(
             "rate_law_to_use",
             ['first', 'zero']
     )
-    def test_add_clearance(self, cmodel_1, rate_law_to_use):
+    def test_add_clearance(self, cmodel_1, clearance_1, rate_law_to_use):
         """
         Check .add_clearance method works correctly
         """
         cmodel_1.model_changed_since_last_build = False
-        cmodel_1.add_clearance(pk.Clearance(
-                id='test_clearance',
-                source = cmodel_1.compartments['central'],
-                rate_constant = 3,
-                rate_law = rate_law_to_use
-            ))
+        clearance_1.id = "test_clearance"
+        clearance_1.rate_law = rate_law_to_use
+        cmodel_1.add_clearance(clearance_1)
         assert 'test_clearance' in cmodel_1.clearances.keys()
         assert cmodel_1.clearances['test_clearance'].source == cmodel_1.compartments['central']
-        assert cmodel_1.clearances['test_clearance'].rate_constant == 3
+        assert cmodel_1.clearances['test_clearance'].rate_constant == 5
         assert cmodel_1.clearances['test_clearance'].rate_law == rate_law_to_use
         assert cmodel_1.model_changed_since_last_build == True
 
@@ -140,18 +186,16 @@ class TestCompartmentModel:
              ('custom',0,lambda x: x**2)
              ]
     )
-    def test_add_dosage(self, cmodel_1, regime_to_use, rate_constant_to_use, dosage_func_to_use):
+    def test_add_dosage(self, cmodel_1, dosage_1, regime_to_use, rate_constant_to_use, dosage_func_to_use):
         """
         Check .add_dosage method works correctly
         """
         cmodel_1.model_changed_since_last_build = False
-        cmodel_1.add_dosage(pk.Dosage(
-            id='test_dosage',
-            dest=cmodel_1.compartments['central'],
-            regime=regime_to_use,
-            rate_constant=rate_constant_to_use,
-            dosage_func=dosage_func_to_use
-        ))
+        dosage_1.id = 'test_dosage'
+        dosage_1.regime = regime_to_use
+        dosage_1.rate_constant = rate_constant_to_use
+        dosage_1.dosage_func = dosage_func_to_use
+        cmodel_1.add_dosage(dosage_1)
         assert 'test_dosage' in cmodel_1.dosages.keys()
         assert cmodel_1.dosages['test_dosage'].dest == cmodel_1.compartments['central']
         assert cmodel_1.dosages['test_dosage'].regime==regime_to_use
@@ -159,12 +203,57 @@ class TestCompartmentModel:
         assert cmodel_1.dosages['test_dosage'].dosage_func==dosage_func_to_use
         assert cmodel_1.model_changed_since_last_build == True
 
-    # To do:
-    # error when you add an existing compartment
-    # error when you add an existing flux
-    # error when you add a flux to a department that doesn't exist
-    # same as above but with clearances
-    # same as above but with dosages
+    def test_add_existing_compartment(self, cmodel_1, comp_1):
+        """
+        Check that we get a KeyError when attempting to add a compartment with the
+        same ID as an existing compartment
+        """
+        with pytest.raises(KeyError):
+            cmodel_1.add_compartment(comp_1)
+
+    def test_add_existing_flux(self, cmodel_1, flux_1):
+        """
+        Check that we get a KeyError when attempting to add a flux with the
+        same ID as an existing flux
+        """
+        with pytest.raises(KeyError):
+            cmodel_1.add_flux(flux_1)
+
+    def test_add_existing_clearance(self, cmodel_1, clearance_1):
+        """
+        Check that we get a KeyError when attempting to add a clearance with the
+        same ID as an existing clearance
+        """
+        with pytest.raises(KeyError):
+            cmodel_1.add_clearance(clearance_1)
+            
+    def test_add_existing_dosage(self, cmodel_1, dosage_1):
+        """
+        Check that we get a KeyError when attempting to add a dosage with the
+        same ID as an existing dosage
+        """
+        with pytest.raises(KeyError):
+            cmodel_1.add_dosage(dosage_1)
+
+    @pytest.mark.parametrize(
+            "fixture_name, method_name",
+            [("flux_1", "add_flux"),
+             ("clearance_1", "add_clearance"),
+             ("dosage_1", "add_dosage")]
+    )
+    def test_add_to_nonexistent_compartment(self, cmodel_1, fixture_name, method_name, request):
+        """
+        Check that we get a KeyError when attempting to add a clearance,
+        flux, or dosage involving a non-existing compartment
+        """
+        fixture = request.getfixturevalue(fixture_name)
+        fixture.id = "New id"
+        if method_name == 'add_dosage':
+            fixture.dest = pk.Compartment("Ghost",1000)
+        else:
+            fixture.source = pk.Compartment("Ghost",1000)
+        with pytest.raises(KeyError):
+            getattr(cmodel_1, method_name)(fixture)
 
     def test_add_flux_invalid_rate_law(self, cmodel_1):
         """
