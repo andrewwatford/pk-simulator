@@ -8,9 +8,16 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+
+    # Test three different OS
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+
     steps:
-    - uses: actions/checkout@v2 # check out code in repo onto the runner
+    - uses: actions/checkout@v2 # Check out code in repo onto the runner
     - name: Set up Python
       uses: actions/setup-python@v2
       with:
