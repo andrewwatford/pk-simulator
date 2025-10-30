@@ -317,9 +317,61 @@ class CompartmentModel:
         axs[-1].set_xlabel('$t$')
         axs[0].set_title('Compartment masses over time')
         return fig, axs
+    
+    def generate_markdown(self, filename):
+        """
+        Generate a .md file to display the system of ODEs
+        ---> In progress: Copilot has done a lot but there is lots to fix
+        - Use symbols for constants, but give values in a table lower down
+        - Use subscripts for compartments as these look much nicer, but link
+        to compartment id in a table lower down
+        - Define terms in equations
+        """
+
+        equations = {}
+
+        for i, comp_id in enumerate(self.compartments.keys()):
+            eq_terms = []
+            # Dosages
+            for dsg in self.dosages.values():
+                if dsg.dest.id == comp_id:
+                    if (dsg.regime == 'constant') and (dsg.rate_constant == 0):
+                        continue
+                    elif dsg.regime == 'constant':
+                        eq_terms.append(f"D_0")
+                    else:
+                        eq_terms.append(f"Dose(t)")
+            ### Bad from here downwards ###
+            # Clearances
+            for clr in self.clearances.values():
+                if clr.source.id == comp_id:
+                    if clr.rate_law == 'first':
+                        eq_terms.append(f"- {clr.rate_constant}/V_{{{clr.source.id}}} * q_{{{clr.source.id}}}")
+                    elif clr.rate_law == 'zero':
+                        eq_terms.append(f"- {clr.rate_constant}")
+            # Fluxes
+            for flux in self.fluxes.values():
+                if flux.source.id == comp_id:
+                    if flux.rate_law == 'first':
+                        eq_terms.append(f"- {flux.rate_constant}/V_{{{flux.source.id}}} * q_{{{flux.source.id}}}")
+                    elif flux.rate_law == 'zero':
+                        eq_terms.append(f"- {flux.rate_constant}")
+                if flux.dest.id == comp_id:
+                    if flux.rate_law == 'first':
+                        eq_terms.append(f"+ {flux.rate_constant}/V_{{{flux.source.id}}} * q_{{{flux.source.id}}}")
+                    elif flux.rate_law == 'zero':
+                        eq_terms.append(f"+ {flux.rate_constant}")
+
+            equation = " + \n    ".join(eq_terms)
+            equations[comp_id] = f"\\frac{{d q_{{{i}}}}}{{d t}} = {equation}"
+
+        with open(f"{filename}.md", "w", encoding="utf-8") as f:
+            for eq in equations.values():
+                f.write(f"\n\n$$\n{eq}\n$$\n\n")
 
 
-if __name__ == "__main__":
+
+if False: #__name__ == "__main__":
     central = Compartment(
         id="central", # TODO make it generate an id if it's not provided?
         volume=22
