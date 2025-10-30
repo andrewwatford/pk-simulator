@@ -77,4 +77,4 @@ pk-model is a Python library for creating, solving, and visualising the solution
 This project is licensed under the MIT license
 ## Contributions
 ---
-To contibute, please open an issue or submit a pull request on GitHub.
+To contribute or fix an issue, please open an issue or submit a pull request on GitHub.
