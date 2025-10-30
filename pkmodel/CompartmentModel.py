@@ -205,26 +205,25 @@ class CompartmentModel:
         for flux in self.fluxes.values():
             src_idx = self.comp_index[flux.source.id]
             dst_idx   = self.comp_index[flux.dest.id]
-            if flux.rate_law == RateLaw.FIRST_ORDER:
+            if flux.rate_law == 'first':
                 A[src_idx, src_idx] += - flux.rate_constant / flux.source.volume
                 A[dst_idx, src_idx] += + flux.rate_constant / flux.source.volume
 
-                if flux.nature == RateLaw.BIDIRECTIONAL:
+                if flux.nature == 'bidirectional':
                     A[src_idx, dst_idx]   += + flux.rate_constant / flux.dest.volume
                     A[dst_idx, dst_idx]   += - flux.rate_constant / flux.dest.volume
 
-            elif flux.rate_law == RateLaw.ZERO_ORDER:
+            elif flux.rate_law == 'zero':
                 warnings.warn("Zero order fluxes are supported, but implementation is non-physical.")
-                if flux.nature == RateLaw.BIDIRECTIONAL:
-                    b[src_idx] += - flux.rate_constant
-                    b[dst_idx] += + flux.rate_constant
+                b[src_idx] += - flux.rate_constant
+                b[dst_idx] += + flux.rate_constant
 
         # Clearances
         for clr in self.clearances.values():
             src_idx = self.comp_index[clr.source.id]
-            if clr.rate_law == RateLaw.FIRST_ORDER:
+            if clr.rate_law == 'first':
                 A[src_idx, src_idx] += - clr.rate_constant / clr.source.volume
-            elif clr.rate_law == RateLaw.ZERO_ORDER:
+            elif clr.rate_law == 'zero':
                 warnings.warn("Zero order clerances are supported, but implementation is non-physical.")
                 b[src_idx] += - clr.rate_constant
             else: 
@@ -234,7 +233,7 @@ class CompartmentModel:
         dosage_lst = [lambda t: 0 for c in range(n)] # Stores all the dosage functions
         for dsg in self.dosages.values():
             dst_idx = self.comp_index[dsg.dest.id]
-            if dsg.regime == DosageRegime.CONSTANT:      
+            if dsg.regime == 'constant':      
                 dosage_lst[dst_idx] = constant_dose(dsg.rate_constant)
             else: # Custom dosage function
                 dosage_lst[dst_idx] = dsg.dosage_func
