@@ -3,6 +3,7 @@ from typing import Sequence, Callable
 from collections import OrderedDict
 from dataclasses import dataclass
 from enum import Enum
+from pydantic import ValidationError
 
 # Maths + plotting
 from scipy.integrate import solve_ivp
@@ -15,7 +16,8 @@ import warnings
 import logging
 
 # Module packages
-from .builtin_fluxes import constant_dose
+from pkmodel.builtin_fluxes import constant_dose
+from pkmodel.config_validation import ModelSpec
 
 def combine_functions(*funcs):
     """Combine multiple scalar time-dependent functions into one vector-valued function.
@@ -44,7 +46,7 @@ class Flux:
     dest:   Compartment
     rate_constant: float
     rate_law: str = "first"
-    nature: str = "unidirectional"
+    nature: str = "bidirectional"
     
     def __post_init__(self):
         if self.rate_law not in ['first', 'zero']:
@@ -114,7 +116,6 @@ class CompartmentModel:
         self.compartments[comp.id] = comp
         self.model_changed_since_last_build = True
     
-
     def add_flux(self, flux:Flux):
         if flux.id in self.fluxes:
             raise KeyError(f"Flux with id '{flux.id}' alredy exists in the model!")
@@ -147,6 +148,16 @@ class CompartmentModel:
 
     @classmethod
     def from_config(cls, config): #TODO check the config against a schema, add support for missing arguments
+        
+        try:
+            spec = ModelSpec.model_validate(config)
+        except ValidationError as e:
+            print("Config invalid")
+            print(e.json())
+            raise
+        else:
+            logging.info("Config valid. Parse:", spec)
+            
         model = cls()
 
         for id, vol in config["compartments"].items():
@@ -165,8 +176,8 @@ class CompartmentModel:
                         source=model.compartments[flux["source"]],
                         dest=model.compartments[flux["dest"]],
                         rate_constant = flux["rate_constant"],
-                        nature = flux["nature"],
-                        rate_law = flux["rate_law"]
+                        nature = flux.get("nature", "bidirectional"),
+                        rate_law = flux.get("rate_law", "first"),
                     )
                 )
 
@@ -177,7 +188,7 @@ class CompartmentModel:
                         id=id,
                         source=model.compartments[clr["source"]],
                         rate_constant = clr["rate_constant"],
-                        rate_law = clr["rate_law"]
+                        rate_law = clr.get("rate_law", "first")
                     )
                 )
 
@@ -187,7 +198,7 @@ class CompartmentModel:
                     Dosage(
                         id=id,
                         dest=model.compartments[dsg["dest"]],
-                        regime=dsg["regime"],
+                        regime=dsg.get("regime", "constant"),
                         rate_constant = dsg["rate_constant"],
                     )
                 )
@@ -363,7 +374,6 @@ if __name__ == "__main__":
     
 
     config = {
-
         "compartments": {
             "central":    22.0,
             "peripheral": 7.0,
@@ -438,7 +448,6 @@ if __name__ == "__main__":
     print("Success")
 
     # TODO - nice print statments for all the classes
-    # TODO - check if classes get copied or smth
     # TODO - get a config from a file
 
 
