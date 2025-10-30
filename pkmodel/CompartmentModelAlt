@@ -2,6 +2,7 @@
 from typing import Sequence, Callable
 from collections import OrderedDict
 from dataclasses import dataclass
+from enum import Enum
 
 # Maths + plotting
 from scipy.integrate import solve_ivp
@@ -35,6 +36,10 @@ class Compartment:
     id: str
     volume: float
 
+class Nature(str, Enum):  # str mixin allows JSON serialization
+    BIDIRECTIONAL = "bidirectional"
+    UNIDIRECTIONAL = "unidirectional"
+
 @dataclass
 class Flux:
     """Represents a flux connecting two compartments"""
@@ -42,8 +47,8 @@ class Flux:
     source: Compartment
     dest:   Compartment
     rate_constant: float
-    nature: str = "bidirectional" # bidirectionnal or unidirectional
     rate_law: str = "first" # first or zeroth
+    nature: Nature = Nature.BIDIRECTIONAL
     
 
 @dataclass 
@@ -182,7 +187,7 @@ class CompartmentModel:
         # TODO: Add checks to make sure the model is buildable? E.g. the kind of fluxes present in the system
 
         for flux in self.fluxes.values():
-            if flux.nature != "bidirectional":
+            if flux.nature not in  ["bidirectional", "unidirectional"]:
                 raise NotImplementedError("Only bidirectional fluxes are supported!")
             if flux.rate_law not in ["first", "zeroth"]:
                 raise NotImplementedError("Only first-order and zero-order fluxes are supported!")
@@ -241,6 +246,8 @@ class CompartmentModel:
             dydt = A @ y + b + d(t)
             return dydt
         
+        self.A = A
+        self.b = b
         self.rhs = rhs
         self.model_built = True
         self.model_changed_since_last_build = False
@@ -385,7 +392,6 @@ if __name__ == "__main__":
                 "rate_constant": 1.0,
             }
         }
-
     }
 
     model2 = CompartmentModel.from_config(config)
@@ -432,3 +438,10 @@ if __name__ == "__main__":
 # TODO - nice print statments for all the classes
 # TODO - check if classes get copied or smth
 # TODO - get a config from a file
+
+
+# identity check (preferred)
+if c_p_flux.source is central_clr.source:
+    print("They are the same object (identity).")
+else:
+    print("Different objects (even if equal by ==).")
