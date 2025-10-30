@@ -65,7 +65,8 @@ setup(
         'matplotlib',
         'scipy',
         'xarray',
-        'pydantic'
+        'pydantic',
+        "networkx",
     ],
     extras_require={
         'docs': [

@@ -7,6 +7,7 @@ from pydantic import ValidationError
 # Maths + plotting
 from scipy.integrate import solve_ivp
 import matplotlib.pyplot as plt
+import networkx as nx
 import numpy as np
 import xarray as xr
 
@@ -119,7 +120,7 @@ class CompartmentModel:
             raise KeyError(f"Compartment with id '{comp.id}' alredy exists in the model!")
 
         self.compartments[comp.id] = comp
-        self.model_changed_since_last_build = True
+        self.model_changed_since_last_build = True 
 
     def add_flux(self, flux: Flux):
         if flux.id in self.fluxes:
@@ -209,7 +210,7 @@ class CompartmentModel:
                 )
 
         return model
-
+        
     def build_linear_rhs(self):
         n = len(self.compartments)
         A = np.zeros((n, n), dtype=float)  # RHS coefficient matrix
@@ -323,6 +324,89 @@ class CompartmentModel:
         axs[0].set_title('Compartment masses over time')
         return fig, axs
 
+    def construct_graph(self):
+        """Construct a NetworkX graph representation of the compartment model.
+
+        ### Returns:
+            - g: networkx.MultiDiGraph. A directed multigraph representing the compartment model.
+        """
+        # Create the empty directed multigraph
+        g = nx.MultiDiGraph()
+        # Add generic IN and OUT nodes
+        g.add_node("IN", subset = "dosages")
+        g.add_node("OUT", subset = "clearances")
+        # Add compartments as nodes, as well as a generic IN and OUT node for each (TODO: improve representation of these)
+        for comp_name, comp in self.compartments.items():
+            g.add_node(comp_name, subset = "compartments", **comp.__dict__)
+        # Add fluxes, clearances, and dosages as edges
+        for flux_name, flux in self.fluxes.items():
+            g.add_edge(flux.source.id, flux.dest.id, key=flux_name, **flux.__dict__)
+            if flux.nature == "bidirectional":
+                g.add_edge(flux.dest.id, flux.source.id, key=flux_name+"_rev", **flux.__dict__)
+        for clear_name, clear in self.clearances.items():
+            g.add_edge(clear.source.id, "OUT", key=clear_name, **clear.__dict__)
+        for dose_name, dose in self.dosages.items():
+            g.add_edge("IN", dose.dest.id, key=dose_name, **dose.__dict__)
+        self.graph = g
+        return self.graph
+
+    def draw_basic_graph(
+            self,
+            pos: dict = None,
+            node_shape: str = "s",
+            node_size: int = 3000,
+            font_size: int = 10,
+            node_color: str = "white",
+            edge_color: str = "black",
+            linewidths: int = 2,
+            arrowsize: int = 20,
+            ):
+        """Create a basic plot of the compartment model graph.
+
+        ### Returns:
+            - fig: matplotlib.figure.Figure. The figure object containing the plot.
+            - ax: matplotlib.axes.Axes. The axes object for the plot.
+        """
+        warnings.warn("This feature is still under development. To produce your own drawing, you may use the output of construct_graph along with NetworkX.")
+        if not hasattr(self, 'graph'):
+            self.construct_graph()
+        g = self.graph
+        if pos is None:
+            # pos = nx.multipartite_layout(g, align = "horizontal") # TODO: need a better layout
+            pos = nx.planar_layout(g) # TODO: need a better layout
+        visible_nodes = list(self.compartments.keys())
+        visible_node_labels = {node: node.capitalize() for node in visible_nodes}
+
+        fig, ax = plt.subplots()
+        nx.draw_networkx_nodes(
+            g, 
+            pos=pos, 
+            nodelist=visible_nodes, 
+            node_shape=node_shape,
+            node_size=node_size,
+            node_color=node_color,
+            edgecolors=edge_color,
+            linewidths=linewidths
+        )
+        nx.draw_networkx_labels(
+            g, 
+            pos=pos, 
+            labels=visible_node_labels, 
+            font_size=font_size
+        )
+        nx.draw_networkx_edges(
+            g, 
+            pos=pos, 
+            width=linewidths, 
+            arrowsize=arrowsize, 
+            node_size=node_size
+        )
+
+        # Set margins for the axes so that nodes aren't clipped
+        ax = plt.gca()
+        ax.margins(0.20)
+        plt.axis("off")
+        return fig, ax
 
 if __name__ == "__main__":
     central = Compartment(
