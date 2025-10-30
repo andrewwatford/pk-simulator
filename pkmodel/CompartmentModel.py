@@ -104,6 +104,9 @@ class CompartmentModel:
         self.model_built = False 
         self.model_changed_since_last_build = True
 
+        self.A = None
+        self.b = None
+
     def add_compartment(self, comp:Compartment):
         if comp.id in self.compartments:
             raise KeyError(f"Compartment with id '{comp.id}' alredy exists in the model!")
