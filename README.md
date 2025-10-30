@@ -1,4 +1,4 @@
-# pk-model Python Library
+# pkmodel Python Library
 
 pk-model is a Python library for creating, solving, and visualising the solution of pharmokinetic models. 
 ## Features
@@ -11,7 +11,7 @@ pk-model is a Python library for creating, solving, and visualising the solution
 
 ## Installation
 ### The library can be installed via pip
-     pip install pk-model
+     pip install pkmodel
 
 ## Example Script:
 ---
