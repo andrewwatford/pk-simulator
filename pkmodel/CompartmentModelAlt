@@ -1,15 +1,20 @@
-import warnings
-from typing import Sequence, Callable, Dict
+# Data types and classes
+from typing import Sequence, Callable
 from collections import OrderedDict
+from dataclasses import dataclass
+
+# Maths + plotting
 from scipy.integrate import solve_ivp
 import matplotlib.pyplot as plt
 import numpy as np
 import xarray as xr
+
+# Logging
+import warnings
 import logging
+
+# Module packages
 from builtin_fluxes import constant_dose
-
-from dataclasses import dataclass
-
 
 def combine_functions(*funcs):
     """Combine multiple scalar time-dependent functions into one vector-valued function.
@@ -43,6 +48,7 @@ class Flux:
 
 @dataclass 
 class Clearance:
+    """Represents a compound leaving a compartment"""
     id: str
     source: Compartment
     rate_constant: float
@@ -50,24 +56,26 @@ class Clearance:
 
 @dataclass
 class Dosage:
+    """Represents a compound entering a compartment"""
     id: str
     dest: Compartment
     regime:str = "constant" # Also supports "custom"
-    rate_constant: float = 0
+    rate_constant: float = 0 # This rate constant is used for the constant dosing regime
     dosage_func: Callable = None
 
 class CompartmentModel:
     """Represents the organism as multiple compartments, with fluxes within and in an out of the system
 
     ### Attributes:
-        compartments
-        fluxes
-        dosages
-        clearances
+        compartments (OrderedDict[str: Compartment])
+        fluxes (OrderedDict[str: Flux])
+        dosages (OrderedDict[str: Clearance])
+        clearances (OrderedDict[str: Dosage])
 
         model_built (bool): Flag to track if the model has been built.
         model_changed_since_last_build (bool): Flag to track if changes have been made to the model
             in which case it needs to be rebult.
+
         rhs (Callable[[float, np.ndarray], np.ndarray]): RHS function that computes dydt = f(t, y).
     """
     def __init__(self):
@@ -87,6 +95,8 @@ class CompartmentModel:
             raise KeyError(f"Compartment with id '{comp.id}' alredy exists in the model!")
         
         self.compartments[comp.id] = comp
+        self.model_changed_since_last_build = True
+    
 
     def add_flux(self, flux:Flux):
         if flux.id in self.fluxes:
@@ -96,6 +106,7 @@ class CompartmentModel:
             raise KeyError(f"Can't add flux to the model: one or both compartments {flux.source.id} or {flux.dest.id} are not present!")
         
         self.fluxes[flux.id] = flux
+        self.model_changed_since_last_build = True
 
     def add_clearance(self, clr:Clearance):
         if clr.id in self.clearances:
@@ -105,6 +116,7 @@ class CompartmentModel:
             raise KeyError(f"Can't a clearance to the model: compartment {clr.source.id} is not present")
         
         self.clearances[clr.id] = clr
+        self.model_changed_since_last_build = True
 
     def add_dosage(self, dsg:Dosage):
         if dsg.id in self.dosages:
@@ -114,6 +126,7 @@ class CompartmentModel:
             raise KeyError(f"Can't a soxage to the model: compartment {dsg.dest.id} is not present")
         
         self.dosages[dsg.id] = dsg
+        self.model_changed_since_last_build = True
 
     @classmethod
     def from_config(cls, config): #TODO check the config against a schema, add support for missing arguments
@@ -229,10 +242,6 @@ class CompartmentModel:
             return dydt
         
         self.rhs = rhs
-
-
-
-        ###
         self.model_built = True
         self.model_changed_since_last_build = False
     
@@ -342,6 +351,7 @@ if __name__ == "__main__":
     result = model.rhs(5, np.array(y_init))
     assert result == pytest.approx(np.asarray(expected), abs=1e-8)
     print("Success")
+    
 
     config = {
 
@@ -421,3 +431,4 @@ if __name__ == "__main__":
 
 # TODO - nice print statments for all the classes
 # TODO - check if classes get copied or smth
+# TODO - get a config from a file
