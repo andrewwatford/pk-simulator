@@ -1,3 +1,6 @@
+![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)
+![Build](https://img.shields.io/github/actions/workflow/status/yourusername/pk-simulator/tests.yml)
+![Python](https://img.shields.io/badge/python-3.9%2B-blue)
 # pkmodel Python Library
 
 pk-model is a Python library for creating, solving, and visualising the solution of pharmokinetic models. 
