@@ -6,18 +6,55 @@ from pkmodel.builtin_fluxes import constant_dose
 import numpy as np
 
 @pytest.fixture()
-def cmodel_1():
+def config_1():
     """
-    Fixture for a simple two-compartment model.
-    No fluxes, clearances, or dosages added.
+    Fixture for a config file.
     """
     config = {
+
         "compartments": {
             "central":    22.0,
             "peripheral": 7.0,
+        },
+
+        "fluxes": {
+            "c_p": {
+                "source":"central",
+                "dest": "peripheral",
+                "rate_constant": 5.0,
+                "nature":"bidirectional",
+                "rate_law":"first"
+            }
+        },
+
+        "clearances": {
+            "central_clearance":{
+                "source":"central",
+                "rate_constant": 5.0,
+                "rate_law":"first"
+            }
+        },
+
+        "dosages": {
+            "central_dosage":{
+                "dest":"central",
+                "regime":"constant",
+                "rate_constant": 1.0,
+            }
         }
     }
-    return pk.CompartmentModel.from_config(config)
+
+    return config
+
+
+@pytest.fixture()
+def cmodel_1(config_1):
+    """
+    Fixture for a CompartmentModel instance.
+    """
+    cmodel = pk.CompartmentModel.from_config(config_1)
+    return cmodel
+
 
 class TestCompartmentModel:
     """
@@ -33,21 +70,28 @@ class TestCompartmentModel:
         assert cmodel_1.model_built == False
         assert cmodel_1.model_changed_since_last_build == True
         assert isinstance(cmodel_1.compartments, OrderedDict)
-        #assert isinstance(cmodel_1.compartments['central'], pk.CompartmentModel.Compartment)
-            
+        assert isinstance(cmodel_1.fluxes, OrderedDict)
+        assert isinstance(cmodel_1.clearances, OrderedDict)
+        assert isinstance(cmodel_1.dosages, OrderedDict)
+        assert len(cmodel_1.compartments) == 2
+        assert len(cmodel_1.fluxes) == 1
+        assert len(cmodel_1.clearances) == 1
+        assert len(cmodel_1.dosages) == 1
+        # etc. Could do more
+
     def test_add_flux_invalid_rate_law(self, cmodel_1):
         """
-        Tests that adding a flux with an invalid rate law raises a NotImplementedError.
+        Tests that adding a flux with an invalid rate law raises a ValueError.
         """
-        
         # Try to add a flux with an invalid rate law
-        with pytest.raises(NotImplementedError):
-            cmodel_1.add_flux(
-                from_compartment = 'central',
-                to_compartment   = 'peripheral',
-                rate_constant    = 1,
-                rate_law         = 'invalid_rate_law')
-            
+        with pytest.raises(ValueError):
+            cmodel_1.add_flux(pk.CompartmentModel.Flux(id='test',
+                            source = cmodel_1.compartments['central'],
+                            dest = cmodel_1.compartments['peripheral'],
+                            rate_constant = 1,
+                            rate_law = "invalid",
+                            nature = "unidirectional"))
+                    
     def test_add_clearance_invalid_rate_law(self, cmodel_1):
         """
         Tests that adding a clearance with an invalid rate law raises a NotImplementedError.
