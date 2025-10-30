@@ -54,4 +54,4 @@ class Test1dExamples:
         central_mass = results['central'].data
         
         # Check that the simulated results match the expected results, to 2 decimal places (any more and numerical errors creep in)
-        npt.assert_array_almost_equal(central_mass, expected, decimal = 2)
+        npt.assert_allclose(central_mass, expected, rtol = 1e-2)
