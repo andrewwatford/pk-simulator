@@ -1,3 +1,6 @@
+![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)
+![Build](https://img.shields.io/github/actions/workflow/status/yourusername/pk-simulator/tests.yml)
+![Python](https://img.shields.io/badge/python-3.9%2B-blue)
 # pkmodel Python Library
 
 pk-model is a Python library for creating, solving, and visualising the solution of pharmokinetic models. 
@@ -12,40 +15,69 @@ pk-model is a Python library for creating, solving, and visualising the solution
 - Plot the results
 
 ## Installation
-### The pkmodel library can be installed via pip
+### via pip
      pip install pkmodel
+### via source
+     git clone https://github.com/andrewwatford/pk-simulator.git
+     cd pk-simulator
+     pip install –e
 
 ## Basic Example Script:
 ---
-     * Needs to be updated with a better example
-     #create compartments
-     central = Compartment(id="central", volume=22)
-     peripheral = Compartment(id="peripheral", volume=7)
+     import matplotlib.pyplot as plt
+     from pkmodel.CompartmentModel import CompartmentModel
      
-     #create flux
-     c_p_flux = Flux(id="c_p_flux", source=central, dest=peripheral, rate_constant=5, nature="bidirectional", rate_law="first")
+     #Define model config
+     config = {
      
-     #create clearance
-     central_clr = Clearance(id="central_clearance", source=central, rate_constant=5, rate_law="first")
+         "compartments": {
+             "central": 22.0,
+             "peripheral": 7.0,
+         },
      
-     #create dosage
-     central_dsg = Dosage(id="central_dosage", dest=central, regime="constant", rate_constant=1)
+         "fluxes": {
+             "c_p": {
+                 "source":"central",
+                 "dest": "peripheral",
+                 "rate_constant": 5.0,
+                 "nature":"bidirectional",
+                 "rate_law":"first"
+             }
+         },
      
-     #create model and add components
-     model = CompartmentModel()
-     model.add_compartment(central)
-     model.add_compartment(peripheral) 
-     model.add_flux(c_p_flux)
-     model.add_clearance(central_clr)
-     model.add_dosage(central_dsg)
+         "clearances": {
+             "central_clearance":{
+                 "source":"central",
+                 "rate_constant": 5.0,
+                 "rate_law":"first"
+             }
+         },
      
-     #build rhs
+         "dosages": {
+             "central_dosage":{
+                 "dest":"central",
+                 "regime":"constant",
+                 "rate_constant": 1.0,
+             }
+         }
+     }
+
+     #Instantiate the model object
+     model = CompartmentModel.from_config(config)
+     #Build and solve the model
      model.build_linear_rhs()
-     
-     #run simulation  
-     ds = model.run(t_span=(0, 10), y0=[22, 7], t_eval=np.linspace(0, 10, 100))
-     
-     #plot results
-     fig, axs = model.plot_all(ds) 
+     #Initial conditions and volumes
+     y0 = [0, 0]  # Initial mass in each compartment
+     t_span = [0, 30]  # Time span for the simulation
+     #Run the simulation
+     result = model.run(t_span, y0)
+     #Plots
+     fig, axs = model.plot_all(result)
+     plt.savefig('./example.png')
 
-
+## License
+---
+This project is licensed under the MIT license
+## Contributions
+---
+To contribute or fix an issue, please open an issue or submit a pull request on GitHub.
