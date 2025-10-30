@@ -145,7 +145,7 @@ class CompartmentModel:
                 )
             )
 
-        if config["fluxes"] != None:     
+        if config.get("fluxes") != None:     
             for id, flux in config["fluxes"].items():
                 model.add_flux(
                     Flux(
@@ -158,7 +158,7 @@ class CompartmentModel:
                     )
                 )
 
-        if config["clearances"] != None:
+        if config.get("clearances") != None:
             for id, clr in config["clearances"].items():
                 model.add_clearance(
                     Clearance(
@@ -169,7 +169,7 @@ class CompartmentModel:
                     )
                 )
 
-        if config["dosages"] != None:
+        if config.get("dosages") != None:
             for id, dsg in config["dosages"].items():
                 model.add_dosage(
                     Dosage(
