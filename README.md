@@ -1,31 +1,51 @@
-# pk-model Python Library
+# pkmodel Python Library
 
 pk-model is a Python library for creating, solving, and visualising the solution of pharmokinetic models. 
-## Features
+## Library Features
 - Specify compartments and volumes
-- Add fluxes between compartments
+- Add fluxes between compartments(bidirectional/unidirectional)
 - Add clearance between compartments
+- Specify rate law for fluxes and clearances
 - Add dosages to compartments
-- Specify initial conditions and solve the model over a specified time span
+- Build RHS of the ODE system
+- Run simulations 
 - Plot the results
 
 ## Installation
-### The library can be installed via pip
-     pip install pk-model
+### The pkmodel library can be installed via pip
+     pip install pkmodel
 
-## Example Script:
+## Basic Example Script:
 ---
      * Needs to be updated with a better example
-     from pkmodel import CompartmentModel
-     model = CompartmentModel(['Central', 'Peripheral'], [3.0, 5.0])
-     model.add_flux('Central', 'Peripheral', rate_constant=0.5, rate_law='first')
-     model.add_clearance('Central', rate_constant=0.3, rate_law='first')
-     model.add_dosage('Central', lambda t: 10 if t < 1 else 0)
-     t_span = (0, 10)
-     y0 = [0, 0]
-     sol = model.build(t_span, y0, t_eval=np.linspace(0, 10, 100)) 
-     print(sol.t)
-     print(sol.y)
-
+     #create compartments
+     central = Compartment(id="central", volume=22)
+     peripheral = Compartment(id="peripheral", volume=7)
+     
+     #create flux
+     c_p_flux = Flux(id="c_p_flux", source=central, dest=peripheral, rate_constant=5, nature="bidirectional", rate_law="first")
+     
+     #create clearance
+     central_clr = Clearance(id="central_clearance", source=central, rate_constant=5, rate_law="first")
+     
+     #create dosage
+     central_dsg = Dosage(id="central_dosage", dest=central, regime="constant", rate_constant=1)
+     
+     #create model and add components
+     model = CompartmentModel()
+     model.add_compartment(central)
+     model.add_compartment(peripheral) 
+     model.add_flux(c_p_flux)
+     model.add_clearance(central_clr)
+     model.add_dosage(central_dsg)
+     
+     #build rhs
+     model.build_linear_rhs()
+     
+     #run simulation  
+     ds = model.run(t_span=(0, 10), y0=[22, 7], t_eval=np.linspace(0, 10, 100))
+     
+     #plot results
+     fig, axs = model.plot_all(ds) 
 
 
