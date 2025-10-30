@@ -1,7 +1,7 @@
 def constant_dose(rate):
     """
     Returns a function that doses at a constant rate.
-    
+
     Parameters
     ----------
     rate : float
