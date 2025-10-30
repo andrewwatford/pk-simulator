@@ -293,8 +293,18 @@ class TestCompartmentModel:
                             source = cmodel_1.compartments['central'],
                             dest = cmodel_1.compartments['peripheral'],
                             rate_constant = 1,
-                            rate_law = "invalid",
-                            nature = "unidirectional"))
+                            rate_law = "first",
+                            nature = "invalid"))
+            
+    def test_add_dosage_invalid_regime(self, cmodel_1):
+        """
+        Tests that adding a dosage with an invalid regime raises a ValueError.
+        """
+
+        with pytest.raises(ValueError):
+            cmodel_1.add_dosage(pk.Dosage(id='test',
+                                          dest=cmodel_1.compartments['central'],
+                                          regime='invalid'))
 
     @pytest.mark.parametrize(
         "comp_dict, flux_dict, clearance_dict, expected_matrix, expected_cst_vector",
