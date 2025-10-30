@@ -64,7 +64,8 @@ setup(
         'numpy',
         'matplotlib',
         'scipy',
-        'xarray'
+        'xarray',
+        "networkx",
     ],
     extras_require={
         'docs': [
