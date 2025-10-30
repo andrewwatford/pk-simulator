@@ -307,6 +307,27 @@ class TestCompartmentModel:
                                           dest=cmodel_1.compartments['central'],
                                           regime='invalid'))
             
+    def test_unbuilt_model_run(self, cmodel_1):
+        """
+        Tests that running an unbuilt model results in the model being built.
+        """
+        cmodel_1.run(t_span = [0, 30], y0 = [0, 0])
+        assert cmodel_1.model_built
+
+    def test_changed_model_run(self, cmodel_1):
+        """
+        Tests that running a changed model results in the model being rebuilt.
+        """
+        cmodel_1.build_linear_rhs()
+        cmodel_1.add_clearance(pk.Clearance(
+            id = 'peripheral_clearance', 
+            source = cmodel_1.compartments['peripheral'],
+            rate_constant = 5.0,
+            rate_law = 'first'
+            ))
+        cmodel_1.run(t_span = [0, 30], y0 = [0, 0])
+        assert cmodel_1.model_built
+            
     def test_invalid_config(self):
         """
         Tests trying to create a model from an invalid config.
@@ -315,17 +336,17 @@ class TestCompartmentModel:
         with pytest.raises(ValidationError):
             config = {
                 "compartment": {
-                    "central":    22.0,
+                    "central": 22.0,
                     "peripheral": 7.0,
                 },
 
                 "fluxes": {
                     "c_p": {
-                        "source":"central",
+                        "source": "central",
                         "dest": "peripheral",
                         "rate_constant": 5.0,
-                        "nature":"bidirectional",
-                        "rate_law":"first"
+                        "nature": "bidirectional",
+                        "rate_law": "first"
                     }
                 },
 
@@ -340,7 +361,6 @@ class TestCompartmentModel:
                 }
             }
             pk.CompartmentModel.from_config(config)
-
 
     @pytest.mark.parametrize(
         "comp_dict, flux_dict, clearance_dict, expected_matrix, expected_cst_vector",
