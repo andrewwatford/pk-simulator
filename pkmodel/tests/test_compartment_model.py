@@ -79,13 +79,100 @@ class TestCompartmentModel:
         assert len(cmodel_1.dosages) == 1
         # etc. Could do more
 
+    def test_add_compartment(self, cmodel_1):
+        """ 
+        Check .add_compartment method works correctly
+        """
+        cmodel_1.model_changed_since_last_build = False
+        cmodel_1.add_compartment(pk.Compartment('peripheral 2', 30))
+        assert 'peripheral 2' in cmodel_1.compartments.keys()
+        assert cmodel_1.compartments['peripheral 2'].volume == 30
+        assert cmodel_1.model_changed_since_last_build == True
+
+    @pytest.mark.parametrize(
+            "rate_law_to_use, nature_to_use",
+            [('first', 'bidirectional'), ('first', 'unidirectional'), ('zero', 'bidirectional')]
+    )
+    def test_add_flux(self, cmodel_1, rate_law_to_use, nature_to_use):
+        """
+        Check .add_flux method works correctly
+        """
+        cmodel_1.model_changed_since_last_build = False
+        cmodel_1.add_flux(pk.Flux(id='test_flux',
+                            source = cmodel_1.compartments['central'],
+                            dest = cmodel_1.compartments['peripheral'],
+                            rate_constant = 1,
+                            rate_law = rate_law_to_use,
+                            nature = nature_to_use))
+        assert 'test_flux' in cmodel_1.fluxes.keys()
+        assert cmodel_1.fluxes['test_flux'].rate_law == rate_law_to_use
+        assert cmodel_1.fluxes['test_flux'].nature == nature_to_use
+        assert cmodel_1.fluxes['test_flux'].source.id == 'central'
+        assert cmodel_1.fluxes['test_flux'].dest.id == 'peripheral'
+        assert cmodel_1.fluxes['test_flux'].rate_constant == 1
+        assert cmodel_1.model_changed_since_last_build == True
+
+    @pytest.mark.parametrize(
+            "rate_law_to_use",
+            ['first', 'zero']
+    )
+    def test_add_clearance(self, cmodel_1, rate_law_to_use):
+        """
+        Check .add_clearance method works correctly
+        """
+        cmodel_1.model_changed_since_last_build = False
+        cmodel_1.add_clearance(pk.Clearance(
+                id='test_clearance',
+                source = cmodel_1.compartments['central'],
+                rate_constant = 3,
+                rate_law = rate_law_to_use
+            ))
+        assert 'test_clearance' in cmodel_1.clearances.keys()
+        assert cmodel_1.clearances['test_clearance'].source == cmodel_1.compartments['central']
+        assert cmodel_1.clearances['test_clearance'].rate_constant == 3
+        assert cmodel_1.clearances['test_clearance'].rate_law == rate_law_to_use
+        assert cmodel_1.model_changed_since_last_build == True
+
+    @pytest.mark.parametrize(
+            "regime_to_use, rate_constant_to_use, dosage_func_to_use",
+            [('constant',0, None), 
+             ('constant', 10, None),
+             ('custom',0,lambda x: x**2)
+             ]
+    )
+    def test_add_dosage(self, cmodel_1, regime_to_use, rate_constant_to_use, dosage_func_to_use):
+        """
+        Check .add_dosage method works correctly
+        """
+        cmodel_1.model_changed_since_last_build = False
+        cmodel_1.add_dosage(pk.Dosage(
+            id='test_dosage',
+            dest=cmodel_1.compartments['central'],
+            regime=regime_to_use,
+            rate_constant=rate_constant_to_use,
+            dosage_func=dosage_func_to_use
+        ))
+        assert 'test_dosage' in cmodel_1.dosages.keys()
+        assert cmodel_1.dosages['test_dosage'].dest == cmodel_1.compartments['central']
+        assert cmodel_1.dosages['test_dosage'].regime==regime_to_use
+        assert cmodel_1.dosages['test_dosage'].rate_constant==rate_constant_to_use
+        assert cmodel_1.dosages['test_dosage'].dosage_func==dosage_func_to_use
+        assert cmodel_1.model_changed_since_last_build == True
+
+    # To do:
+    # error when you add an existing compartment
+    # error when you add an existing flux
+    # error when you add a flux to a department that doesn't exist
+    # same as above but with clearances
+    # same as above but with dosages
+
     def test_add_flux_invalid_rate_law(self, cmodel_1):
         """
         Tests that adding a flux with an invalid rate law raises a ValueError.
         """
         # Try to add a flux with an invalid rate law
         with pytest.raises(ValueError):
-            cmodel_1.add_flux(pk.CompartmentModel.Flux(id='test',
+            cmodel_1.add_flux(pk.Flux(id='test',
                             source = cmodel_1.compartments['central'],
                             dest = cmodel_1.compartments['peripheral'],
                             rate_constant = 1,
@@ -94,29 +181,31 @@ class TestCompartmentModel:
                     
     def test_add_clearance_invalid_rate_law(self, cmodel_1):
         """
-        Tests that adding a clearance with an invalid rate law raises a NotImplementedError.
+        Tests that adding a clearance with an invalid rate law raises a ValueError.
         """     
         
         # Try to add a clearance with an invalid rate law
-        with pytest.raises(NotImplementedError):
-            cmodel_1.add_clearance(
-                from_compartment = 'central',
-                rate_constant    = 1,
-                rate_law         = 'invalid_rate_law')
+        with pytest.raises(ValueError):
+            cmodel_1.add_clearance(pk.Clearance(
+                id='test',
+                source = cmodel_1.compartments['central'],
+                rate_constant = 3,
+                rate_law = 'invalid'
+            ))
             
     def test_add_flux_invalid_nature(self, cmodel_1):
         """
-        Tests that adding a flux with an invalid nature raises a NotImplementedError.
+        Tests that adding a flux with an invalid nature raises a ValueError.
         """ 
         
         # Try to add a flux with an invalid nature
-        with pytest.raises(NotImplementedError):
-            cmodel_1.add_flux(
-                from_compartment = 'central',
-                to_compartment   = 'peripheral',
-                rate_constant    = 1,
-                rate_law         = 'first',
-                nature           = 'invalid_nature')
+        with pytest.raises(ValueError):
+            cmodel_1.add_flux(pk.Flux(id='test',
+                            source = cmodel_1.compartments['central'],
+                            dest = cmodel_1.compartments['peripheral'],
+                            rate_constant = 1,
+                            rate_law = "invalid",
+                            nature = "unidirectional"))
 
     @pytest.mark.parametrize(
         "compartment_names, compartment_volumes, flux_dict_list, clearance_dict_list, expected_matrix, expected_cst_vector",
