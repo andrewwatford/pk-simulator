@@ -79,87 +79,112 @@ class TestCompartmentModel:
                 nature           = 'invalid_nature')
 
     @pytest.mark.parametrize(
-        "compartment_names, compartment_volumes, flux_dict_list, clearance_dict_list, expected_matrix, expected_cst_vector",
+        "comp_dict, flux_dict, clearance_dict, expected_matrix, expected_cst_vector",
         [
             # Test case 1: two compartments, one first-order diffusive flux
             (   
-                ['central', 'peripheral'],
-                [22, 7],
-                [{
-                    'from_compartment': 'central',
-                    'to_compartment': 'peripheral',
-                    'rate_constant': 1,
-                    'rate_law': 'first',
-                    'nature': 'diffusive'}],
-                [],
+                {
+                    "central":    22.0,
+                    "peripheral": 7.0
+                },
+
+                {
+                    "test_flux": {
+                    "source":"central",
+                    "dest": "peripheral",
+                    "rate_constant": 1.0,
+                    "nature":"bidirectional",
+                    "rate_law":"first"
+                    }
+                },
+                None,
                 [
-                [-1/22, 1/7],
-                [1/22, -1/7]
+                    [-1/22, 1/7],
+                    [1/22, -1/7]
                 ],
                 [0, 0]
             ),
             # Test case 2: two compartments, one first-order clearance
             (   
-                ['central', 'peripheral'],
-                [22, 7],
-                [],
-                [{
-                    'from_compartment': 'central',
-                    'rate_constant': 2,
-                    'rate_law': 'first'
-                }],
+                {
+                    "central":    22.0,
+                    "peripheral": 7.0
+                },
+                None,
+                {
+                    "central_clearance":{
+                        "source":"central",
+                        "rate_constant": 2.0,
+                        "rate_law":"first"
+                    }
+                },
                 [
-                [-2/22, 0],
-                [0, 0]
+                    [-2/22, 0],
+                    [0, 0]
                 ],
                 [0, 0]
             ),
             # Test case 3: two compartments, one first-order one-way flux
             (   
-                ['central', 'peripheral'],
-                [22, 7],
-                [{
-                    'from_compartment': 'central',
-                    'to_compartment': 'peripheral',
-                    'rate_constant': 1,
-                    'rate_law': 'first',
-                    'nature': 'one-way'}],
-                [],
+                {
+                    "central":    22.0,
+                    "peripheral": 7.0
+                },
+                {
+                    "test_flux": {
+                    "source":"central",
+                    "dest": "peripheral",
+                    "rate_constant": 1.0,
+                    "nature":"unidirectional",
+                    "rate_law":"first"
+                    }
+                },
+                None,
                 [
-                [-1/22, 0],
-                [1/22, 0]
+                    [-1/22, 0],
+                    [1/22,  0]
                 ],
                 [0, 0]
             ),
             # Test case 4: two compartments, one zero-order flux
             (   
-                ['central', 'peripheral'],
-                [22, 7],
-                [{
-                    'from_compartment': 'central',
-                    'to_compartment': 'peripheral',
-                    'rate_constant': 1,
-                    'rate_law': 'zero'}],
-                [],
+                {
+                    "central":    22.0,
+                    "peripheral": 7.0
+                },
+                {
+                    "test_flux": {
+                    "source":"central",
+                    "dest": "peripheral",
+                    "rate_constant": 1.0,
+                    "nature":"unidirectional",
+                    "rate_law":"zero"
+                    }
+                },
+                None,
                 [
-                [0, 0],
-                [0, 0]
+                    [0, 0],
+                    [0, 0]
                 ],
                 [-1, 1]
             ),
             # Test case 5: two compartments, one zero-order clearance
             (   
-                ['central', 'peripheral'],
-                [22, 7],
-                [],
-                [{
-                    'from_compartment': 'central',
-                    'rate_constant': 2,
-                    'rate_law': 'zero'
-                }],
+                {
+                    "central":    22.0,
+                    "peripheral": 7.0
+                },
+                None,
+                {
+                    "central_clearance":{
+                        "source":"central",
+                        "rate_constant": 2.0,
+                        "rate_law":"zero"
+                    }
+                },
                 [
-                [0, 0],
-                [0, 0]
+                    [0, 0],
+                    [0, 0]
                 ],
                 [-2, 0]
             ),
@@ -167,92 +192,108 @@ class TestCompartmentModel:
             # Has one first-order diffusive flux between central and peripheral compartments
             # And one first-order clearance from central compartment
             (   
-                ['central', 'peripheral'],
-                [22, 7],
-                [{
-                    'from_compartment': 'central',
-                    'to_compartment': 'peripheral',
-                    'rate_constant': 3,
-                    'rate_law': 'first',
-                    'nature': 'diffusive'
-                }],
-                [{
-                    'from_compartment': 'central',
-                    'rate_constant': 5,
-                    'rate_law': 'first'
-                }],
+                {   
+                    "central":    22.0,
+                    "peripheral": 7.0
+                },
+                {
+                    "test_flux": {
+                    "source":"central",
+                    "dest": "peripheral",
+                    "rate_constant": 3.0,
+                    "nature":"bidirectional",
+                    "rate_law":"first"
+                    }
+                },
+                {
+                    "central_clearance":{
+                        "source":"central",
+                        "rate_constant": 5.0,
+                        "rate_law":"first"
+                    }
+                },
                 [
-                [-8/22, 3/7],
-                [3/22, -3/7]
+                    [-8/22, 3/7],
+                    [3/22, -3/7]
                 ],
                 [0, 0]
             ),
             # Test case 7: subcutaneous dosing model in instructions. Dosage = 0
             (   
-                ['absorber','central', 'peripheral'],
-                [5, 22, 7],
-                [{
-                    'from_compartment': 'absorber',
-                    'to_compartment': 'central',
-                    'rate_constant': 1,
-                    'rate_law': 'first',
-                    'nature': 'one-way'
-                }, 
                 {
-                    'from_compartment': 'central',
-                    'to_compartment': 'peripheral',
-                    'rate_constant': 5,
-                    'rate_law': 'first',
-                    'nature': 'diffusive'
-                }],
-                [{
-                    'from_compartment': 'central',
-                    'rate_constant': 3,
-                    'rate_law': 'first'
-                }],
+                    "absorber": 5.0,
+                    "central": 22.0,
+                    "peripheral": 7.0
+                },
+
+                {
+                    "c_p": {
+                        "source":"central",
+                        "dest": "peripheral",
+                        "rate_constant": 5.0,
+                        "nature":"bidirectional",
+                        "rate_law":"first"
+                    },
+                    "a_c": {
+                        "source":"absorber",
+                        "dest": "central",
+                        "rate_constant": 1.0,
+                        "nature":"unidirectional",
+                        "rate_law":"first"
+                    }    
+                },
+
+                {
+                    "central_clearance":{
+                        "source":"central",
+                        "rate_constant": 3.0,
+                        "rate_law":"first"
+                    }
+                },
                 [
-                [-1/5, 0, 0],
-                [1/5, -8/22, 5/7], 
-                [0, 5/22, -5/7]
+                    [-1/5, 0, 0],
+                    [1/5, -8/22, 5/7], 
+                    [0, 5/22, -5/7]
                 ],
                 [0, 0, 0]
             ),
             # Test case 8: no fluxes or clearances
             (   
-                ['absorber','central', 'peripheral'],
-                [5, 22, 7],
-                [],
-                [],
+                {
+                    "absorber": 5.0,
+                    "central": 22.0,
+                    "peripheral": 7.0
+            
+                },
+                None,
+                None,
                 [
-                [0, 0, 0],
-                [0, 0, 0], 
-                [0, 0, 0]
+                    [0, 0, 0],
+                    [0, 0, 0], 
+                    [0, 0, 0]
                 ],
                 [0, 0, 0]
             ),
         ]
     )
-    def test_matrix_and_constant_vector(self, compartment_names, compartment_volumes, flux_dict_list, clearance_dict_list, expected_matrix, expected_cst_vector):
+    def test_matrix_and_constant_vector(self, comp_dict, flux_dict, clearance_dict, expected_matrix, expected_cst_vector):
         """
         Tests that the RHS matrix and constant vector are correctly constructed
         after various combinations of zero- or first-order fluxes and clearances are added
         """      
 
-        # Initialise compartment model
-        model = pk.CompartmentModel(
-            compartment_names   = compartment_names,
-            compartment_volumes = compartment_volumes)
+        config = {
+            "compartments": comp_dict,
+            "fluxes": flux_dict,
+            "clearances": clearance_dict,
+            "dosages": None
+        }
 
-        # Add fluxes
-        for flux_dict in flux_dict_list:
-            model.add_flux(**flux_dict)
-        
-        # Add clearances
-        for clearance_dict in clearance_dict_list:
-            model.add_clearance(**clearance_dict)
+        model = pk.CompartmentModel.from_config(config)
+        model.build_linear_rhs()
 
-        npt.assert_array_almost_equal(model.rhs_matrix, expected_matrix)
-        npt.assert_array_almost_equal(model.rhs_cst_vector, expected_cst_vector)
+        npt.assert_array_almost_equal(model.A, expected_matrix)
+        npt.assert_array_almost_equal(model.b, expected_cst_vector)
 
     @pytest.mark.parametrize(
     "name, flux_dict, clearance_dict, dose, y_init, expected" ,
@@ -273,8 +314,8 @@ class TestCompartmentModel:
                         "source":"central",
                         "rate_constant": 5.0,
                         "rate_law":"first"
-                        }
-                    },
+                    }
+                },
                 1,  # Dose into the central compartment                    
                 np.array([22.0, 7.0]),
                 np.array([-4.0, 0.0])

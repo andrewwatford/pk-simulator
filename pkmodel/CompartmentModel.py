@@ -95,6 +95,9 @@ class CompartmentModel:
         self.model_built = False 
         self.model_changed_since_last_build = True
 
+        self.A = None
+        self.b = None
+
     def add_compartment(self, comp:Compartment):
         if comp.id in self.compartments:
             raise KeyError(f"Compartment with id '{comp.id}' alredy exists in the model!")
@@ -189,7 +192,7 @@ class CompartmentModel:
         for flux in self.fluxes.values():
             if flux.nature not in  ["bidirectional", "unidirectional"]:
                 raise NotImplementedError("Only bidirectional fluxes are supported!")
-            if flux.rate_law not in ["first", "zeroth"]:
+            if flux.rate_law not in ["first", "zero"]:
                 raise NotImplementedError("Only first-order and zero-order fluxes are supported!")
         
         n = len(self.compartments)
@@ -213,9 +216,8 @@ class CompartmentModel:
 
             elif flux.rate_law == 'zero':
                 warnings.warn("Zeroth order fluxes are supported, but implementation is non-physical.")
-                if flux.nature == 'bidirectional':
-                    b[src_idx] += - flux.rate_constant
-                    b[dst_idx] += + flux.rate_constant
+                b[src_idx] += - flux.rate_constant
+                b[dst_idx] += + flux.rate_constant
 
         # Clearances
         for clr in self.clearances.values():
