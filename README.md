@@ -17,35 +17,53 @@ pk-model is a Python library for creating, solving, and visualising the solution
 
 ## Basic Example Script:
 ---
-     * Needs to be updated with a better example
-     #create compartments
-     central = Compartment(id="central", volume=22)
-     peripheral = Compartment(id="peripheral", volume=7)
-     
-     #create flux
-     c_p_flux = Flux(id="c_p_flux", source=central, dest=peripheral, rate_constant=5, nature="bidirectional", rate_law="first")
-     
-     #create clearance
-     central_clr = Clearance(id="central_clearance", source=central, rate_constant=5, rate_law="first")
-     
-     #create dosage
-     central_dsg = Dosage(id="central_dosage", dest=central, regime="constant", rate_constant=1)
-     
-     #create model and add components
-     model = CompartmentModel()
-     model.add_compartment(central)
-     model.add_compartment(peripheral) 
-     model.add_flux(c_p_flux)
-     model.add_clearance(central_clr)
-     model.add_dosage(central_dsg)
-     
-     #build rhs
-     model.build_linear_rhs()
-     
-     #run simulation  
-     ds = model.run(t_span=(0, 10), y0=[22, 7], t_eval=np.linspace(0, 10, 100))
-     
-     #plot results
-     fig, axs = model.plot_all(ds) 
+import matplotlib.pyplot as plt
+from pkmodel.CompartmentModel import CompartmentModel
 
+# Define model config
+config = {
 
+    "compartments": {
+        "central": 22.0,
+        "peripheral": 7.0,
+    },
+
+    "fluxes": {
+        "c_p": {
+            "source":"central",
+            "dest": "peripheral",
+            "rate_constant": 5.0,
+            "nature":"bidirectional",
+            "rate_law":"first"
+        }
+    },
+
+    "clearances": {
+        "central_clearance":{
+            "source":"central",
+            "rate_constant": 5.0,
+            "rate_law":"first"
+        }
+    },
+
+    "dosages": {
+        "central_dosage":{
+            "dest":"central",
+            "regime":"constant",
+            "rate_constant": 1.0,
+        }
+    }
+}
+
+# Instantiate the model object
+model = CompartmentModel.from_config(config)
+# Build and solve the model
+model.build_linear_rhs()
+# Initial conditions and volumes
+y0 = [0, 0]  # Initial mass in each compartment
+t_span = [0, 30]  # Time span for the simulation
+# Run the simulation
+result = model.run(t_span, y0)
+# Plots
+fig, axs = model.plot_all(result)
+plt.savefig('./example.png')
