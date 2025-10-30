@@ -3,7 +3,7 @@ import pytest
 import logging
 import pkmodel as pk
 import numpy as np
-
+from pydantic import ValidationError
 from pkmodel.CompartmentModel import CompartmentModel, Compartment, Flux, Clearance, Dosage
 
 @pytest.fixture()
@@ -297,11 +297,76 @@ class TestCompartmentModel:
         # Try to add a flux with an invalid nature
         with pytest.raises(ValueError):
             cmodel_1.add_flux(pk.Flux(id='test',
-                                      source=cmodel_1.compartments['central'],
-                                      dest=cmodel_1.compartments['peripheral'],
-                                      rate_constant=1,
-                                      rate_law="invalid",
-                                      nature="unidirectional"))
+                            source = cmodel_1.compartments['central'],
+                            dest = cmodel_1.compartments['peripheral'],
+                            rate_constant = 1,
+                            rate_law = "first",
+                            nature = "invalid"))
+            
+    def test_add_dosage_invalid_regime(self, cmodel_1):
+        """
+        Tests that adding a dosage with an invalid regime raises a ValueError.
+        """
+
+        with pytest.raises(ValueError):
+            cmodel_1.add_dosage(pk.Dosage(id='test',
+                                          dest=cmodel_1.compartments['central'],
+                                          regime='invalid'))
+            
+    def test_unbuilt_model_run(self, cmodel_1):
+        """
+        Tests that running an unbuilt model results in the model being built.
+        """
+        cmodel_1.run(t_span = [0, 30], y0 = [0, 0])
+        assert cmodel_1.model_built
+
+    def test_changed_model_run(self, cmodel_1):
+        """
+        Tests that running a changed model results in the model being rebuilt.
+        """
+        cmodel_1.build_linear_rhs()
+        cmodel_1.add_clearance(pk.Clearance(
+            id = 'peripheral_clearance', 
+            source = cmodel_1.compartments['peripheral'],
+            rate_constant = 5.0,
+            rate_law = 'first'
+            ))
+        cmodel_1.run(t_span = [0, 30], y0 = [0, 0])
+        assert cmodel_1.model_built
+            
+    def test_invalid_config(self):
+        """
+        Tests trying to create a model from an invalid config.
+        """
+
+        with pytest.raises(ValidationError):
+            config = {
+                "compartment": {
+                    "central": 22.0,
+                    "peripheral": 7.0,
+                },
+
+                "fluxes": {
+                    "c_p": {
+                        "source": "central",
+                        "dest": "peripheral",
+                        "rate_constant": 5.0,
+                        "nature": "bidirectional",
+                        "rate_law": "first"
+                    }
+                },
+
+                "clearances": None,
+
+                "dosages": {
+                    "central_dosage":{
+                        "dest":"central",
+                        "regime":"constant",
+                        "rate_constant": 1.0,
+                    }
+                }
+            }
+            pk.CompartmentModel.from_config(config)
 
     @pytest.mark.parametrize(
         "comp_dict, flux_dict, clearance_dict, expected_matrix, expected_cst_vector",
