@@ -55,15 +55,15 @@ config = {
     }
 }
 
-# Instantiate the model object
+#Instantiate the model object
 model = CompartmentModel.from_config(config)
-# Build and solve the model
+#Build and solve the model
 model.build_linear_rhs()
-# Initial conditions and volumes
+#Initial conditions and volumes
 y0 = [0, 0]  # Initial mass in each compartment
 t_span = [0, 30]  # Time span for the simulation
-# Run the simulation
+#Run the simulation
 result = model.run(t_span, y0)
-# Plots
+#Plots
 fig, axs = model.plot_all(result)
 plt.savefig('./example.png')
