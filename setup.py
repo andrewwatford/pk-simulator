@@ -64,7 +64,8 @@ setup(
         'numpy',
         'matplotlib',
         'scipy',
-        'xarray'
+        'xarray',
+        'pydantic'
     ],
     extras_require={
         'docs': [
