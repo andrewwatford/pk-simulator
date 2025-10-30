@@ -36,10 +36,6 @@ class Compartment:
     id: str
     volume: float
 
-class Nature(str, Enum):  # str mixin allows JSON serialization
-    BIDIRECTIONAL = "bidirectional"
-    UNIDIRECTIONAL = "unidirectional"
-
 @dataclass
 class Flux:
     """Represents a flux connecting two compartments"""
@@ -47,9 +43,14 @@ class Flux:
     source: Compartment
     dest:   Compartment
     rate_constant: float
-    rate_law: str = "first" # first or zeroth
-    nature: Nature = Nature.BIDIRECTIONAL
+    rate_law: str = "first"
+    nature: str = "unidirectional"
     
+    def __post_init__(self):
+        if self.rate_law not in ['first', 'zero']:
+            raise ValueError(f"Rate law '{self.rate_law}' is not supported! Supported rate laws are 'first' and 'zero'.")
+        if self.nature not in ['unidirectional', 'bidirectional']:
+            raise ValueError(f"Nature '{self.nature}' is not supported! Supported natures are 'unidirectional' and 'bidirectional'.")
 
 @dataclass 
 class Clearance:
@@ -57,16 +58,24 @@ class Clearance:
     id: str
     source: Compartment
     rate_constant: float
-    rate_law: str = "first" # first or zeroth
+    rate_law: str = 'first'
+
+    def __post_init__(self):
+        if self.rate_law not in ['first', 'zero']:
+            raise ValueError(f"Rate law '{self.rate_law}' is not supported! Supported rate laws are 'first' and 'zero'.")
 
 @dataclass
 class Dosage:
     """Represents a compound entering a compartment"""
     id: str
     dest: Compartment
-    regime:str = "constant" # Also supports "custom"
-    rate_constant: float = 0 # This rate constant is used for the constant dosing regime
+    regime: str = 'constant'
+    rate_constant: float = 0  # This rate constant is used for the constant dosing regime
     dosage_func: Callable = None
+
+    def __post_init__(self):
+        if self.regime not in ['constant', 'custom']:
+            raise ValueError(f"Dosage regime '{self.regime}' is not supported! Supported regimes are 'constant' and 'custom'.")
 
 class CompartmentModel:
     """Represents the organism as multiple compartments, with fluxes within and in an out of the system
@@ -184,13 +193,6 @@ class CompartmentModel:
         
 
     def build_linear_rhs(self):
-        # TODO: Add checks to make sure the model is buildable? E.g. the kind of fluxes present in the system
-
-        for flux in self.fluxes.values():
-            if flux.nature not in  ["bidirectional", "unidirectional"]:
-                raise NotImplementedError("Only bidirectional fluxes are supported!")
-            if flux.rate_law not in ["first", "zeroth"]:
-                raise NotImplementedError("Only first-order and zero-order fluxes are supported!")
         
         n = len(self.compartments)
         A = np.zeros((n, n), dtype = float) # RHS coefficient matrix
@@ -203,41 +205,39 @@ class CompartmentModel:
         for flux in self.fluxes.values():
             src_idx = self.comp_index[flux.source.id]
             dst_idx   = self.comp_index[flux.dest.id]
-            if flux.rate_law == 'first':
+            if flux.rate_law == RateLaw.FIRST_ORDER:
                 A[src_idx, src_idx] += - flux.rate_constant / flux.source.volume
                 A[dst_idx, src_idx] += + flux.rate_constant / flux.source.volume
 
-                if flux.nature == 'bidirectional':
+                if flux.nature == RateLaw.BIDIRECTIONAL:
                     A[src_idx, dst_idx]   += + flux.rate_constant / flux.dest.volume
                     A[dst_idx, dst_idx]   += - flux.rate_constant / flux.dest.volume
 
-            elif flux.rate_law == 'zero':
-                warnings.warn("Zeroth order fluxes are supported, but implementation is non-physical.")
-                if flux.nature == 'bidirectional':
+            elif flux.rate_law == RateLaw.ZERO_ORDER:
+                warnings.warn("Zero order fluxes are supported, but implementation is non-physical.")
+                if flux.nature == RateLaw.BIDIRECTIONAL:
                     b[src_idx] += - flux.rate_constant
                     b[dst_idx] += + flux.rate_constant
 
         # Clearances
         for clr in self.clearances.values():
             src_idx = self.comp_index[clr.source.id]
-            if clr.rate_law == 'first':
+            if clr.rate_law == RateLaw.FIRST_ORDER:
                 A[src_idx, src_idx] += - clr.rate_constant / clr.source.volume
-            elif clr.rate_law == 'zero':
-                warnings.warn("Zeroth order clerances are supported, but implementation is non-physical.")
+            elif clr.rate_law == RateLaw.ZERO_ORDER:
+                warnings.warn("Zero order clerances are supported, but implementation is non-physical.")
                 b[src_idx] += - clr.rate_constant
             else: 
-                raise NotImplementedError("Only first or zeroth order clearances are supported!")
+                raise NotImplementedError("Only first or zero order clearances are supported!")
 
         # Dosages
         dosage_lst = [lambda t: 0 for c in range(n)] # Stores all the dosage functions
         for dsg in self.dosages.values():
             dst_idx = self.comp_index[dsg.dest.id]
-            if dsg.regime == "constant":        # TO DO: needs more checks for this loop
+            if dsg.regime == DosageRegime.CONSTANT:      
                 dosage_lst[dst_idx] = constant_dose(dsg.rate_constant)
-            elif dsg.regime == "custom":
+            else: # Custom dosage function
                 dosage_lst[dst_idx] = dsg.dosage_func
-            else:
-                raise NotImplementedError(f"Dosing regime {dsg.regime} is not supported!")
 
         d = combine_functions(*dosage_lst)
 
@@ -303,7 +303,6 @@ class CompartmentModel:
         axs[-1].set_xlabel('$t$')
         axs[0].set_title('Compartment masses over time')
         return fig, axs
-
 
 
 if __name__ == "__main__":
@@ -435,13 +434,13 @@ if __name__ == "__main__":
     assert result == pytest.approx(np.asarray(expected), abs=1e-8)
     print("Success")
 
-# TODO - nice print statments for all the classes
-# TODO - check if classes get copied or smth
-# TODO - get a config from a file
+    # TODO - nice print statments for all the classes
+    # TODO - check if classes get copied or smth
+    # TODO - get a config from a file
 
 
-# identity check (preferred)
-if c_p_flux.source is central_clr.source:
-    print("They are the same object (identity).")
-else:
-    print("Different objects (even if equal by ==).")
+    # identity check (preferred)
+    if c_p_flux.source is central_clr.source:
+        print("They are the same object (identity).")
+    else:
+        print("Different objects (even if equal by ==).")
