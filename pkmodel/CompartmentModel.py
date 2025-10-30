@@ -15,7 +15,7 @@ import warnings
 import logging
 
 # Module packages
-from builtin_fluxes import constant_dose
+from pkmodel.builtin_fluxes import constant_dose
 
 def combine_functions(*funcs):
     """Combine multiple scalar time-dependent functions into one vector-valued function.
@@ -435,13 +435,13 @@ if __name__ == "__main__":
     assert result == pytest.approx(np.asarray(expected), abs=1e-8)
     print("Success")
 
-# TODO - nice print statments for all the classes
-# TODO - check if classes get copied or smth
-# TODO - get a config from a file
+    # TODO - nice print statments for all the classes
+    # TODO - check if classes get copied or smth
+    # TODO - get a config from a file
 
 
-# identity check (preferred)
-if c_p_flux.source is central_clr.source:
-    print("They are the same object (identity).")
-else:
-    print("Different objects (even if equal by ==).")
+    # identity check (preferred)
+    if c_p_flux.source is central_clr.source:
+        print("They are the same object (identity).")
+    else:
+        print("Different objects (even if equal by ==).")

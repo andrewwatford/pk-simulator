@@ -255,21 +255,26 @@ class TestCompartmentModel:
         npt.assert_array_almost_equal(model.rhs_cst_vector, expected_cst_vector)
 
     @pytest.mark.parametrize(
-    "name, flux_kwargs, clearance_kwargs, dose, y_init, expected" ,
+    "name, flux_dict, clearance_dict, dose, y_init, expected" ,
         [
             (
                     "first_order_flux_clearance_dose",
                 {
-                    "from_compartment": "central",
-                    "to_compartment": "peripheral",
-                    "rate_constant": 5, 
-                    "rate_law": "first"
+                    "test_flux": {
+                    "source":"central",
+                    "dest": "peripheral",
+                    "rate_constant": 5.0,
+                    "nature":"bidirectional",
+                    "rate_law":"first"
+                    }
                 },
                 {
-                    "from_compartment": "central",
-                    "rate_constant": 5,
-                    "rate_law": "first"
-                },
+                    "central_clearance":{
+                        "source":"central",
+                        "rate_constant": 5.0,
+                        "rate_law":"first"
+                        }
+                    },
                 1,  # Dose into the central compartment                    
                 np.array([22.0, 7.0]),
                 np.array([-4.0, 0.0])
@@ -278,10 +283,13 @@ class TestCompartmentModel:
             (
                     "first_order_flux_dose",
                 {
-                    "from_compartment": "central",
-                    "to_compartment": "peripheral",
-                    "rate_constant": 5, 
-                    "rate_law": "first"
+                    "test_flux": {
+                    "source":"central",
+                    "dest": "peripheral",
+                    "rate_constant": 5.0,
+                    "nature":"bidirectional",
+                    "rate_law":"first"
+                    }
                 },
                 None,
                 1,  # Dose into the central compartment                    
@@ -291,26 +299,28 @@ class TestCompartmentModel:
         ]
     )
 
-    def test_build_parametrized(self, name, flux_kwargs, clearance_kwargs, dose, y_init, expected):
+    def test_build_parametrized(self, name, flux_dict, clearance_dict, dose, y_init, expected):
         logging.info(f"Testing the model {name}")
-        model = pk.CompartmentModel(
-            compartment_names   = ["central", "peripheral"],
-            compartment_volumes = [22,7]
-        )
+        config = {
+            "compartments": {
+                "central":    22.0,
+                "peripheral": 7.0,
+            },
+            "fluxes": flux_dict,
+            "clearances": clearance_dict,
+            "dosages": {
+                "central_dosage":{
+                    "dest":"central",
+                    "regime":"constant",
+                    "rate_constant": dose,
+                }
+            }
+        }
 
-        # Add optional flux
-        if flux_kwargs is not None:
-            model.add_flux(**flux_kwargs)
-
-        # Add optional clearance
-        if clearance_kwargs is not None:
-            model.add_clearance(**clearance_kwargs)
-
-        # Add dosage to central
-        model.add_dosage(compartment_name="central", dosage_func=constant_dose(dose))
+        model = pk.CompartmentModel.from_config(config)
 
         # Build the model
-        model.build()
+        model.build_linear_rhs()
 
         assert model.model_built == True
         assert model.model_changed_since_last_build == False
