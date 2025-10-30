@@ -1,6 +1,5 @@
 from pydantic import BaseModel, ConfigDict, ValidationError
-from typing import  Callable, Dict, Optional, Literal
-import pkmodel as pk
+from typing import Callable, Dict, Optional, Literal
 
 # Enums for strict validation
 Nature = Literal["bidirectional", "unidirectional"]
@@ -12,10 +11,11 @@ class FluxSpec(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     source: str
-    dest:   str
+    dest: str
     rate_constant: float
     rate_law: RateLaw = "first"
     nature: Nature = "bidirectional"
+
 
 class ClearanceSpec(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
@@ -24,48 +24,51 @@ class ClearanceSpec(BaseModel):
     rate_constant: float
     rate_law: RateLaw = 'first'
 
+
 class DosageSpec(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     dest: str
     regime: Regime = 'constant'
-    rate_constant: Optional[float] = 0.0  
+    rate_constant: Optional[float] = 0.0
     dosage_func: Callable = None
 
+
 class ModelSpec(BaseModel):
-    compartments: Dict[str, float]                     
-    fluxes: Optional[Dict[str, FluxSpec]] = None       
+    compartments: Dict[str, float]
+    fluxes: Optional[Dict[str, FluxSpec]] = None
     clearances: Optional[Dict[str, ClearanceSpec]] = None
     dosages: Optional[Dict[str, DosageSpec]] = None
+
 
 if __name__ == "__main__":
     config = {
         "compartments": {
-            "central":    22.0,
+            "central": 22.0,
             "peripheral": 7.0,
         },
 
         "fluxes": {
             "c_p": {
-                "source":"central",
+                "source": "central",
                 "dest": "peripheral",
                 "rate_constant": 5.0,
-                "nature":"bidirectional",
-                "rate_law":"first"
+                "nature": "bidirectional",
+                "rate_law": "first"
             }
         },
 
         "clearances": None,
 
         "dosages": {
-            "central_dosage":{
-                "dest":"central",
-                "regime":"constant",
+            "central_dosage": {
+                "dest": "central",
+                "regime": "constant",
                 "rate_constant": 1.0,
             }
         }
     }
-    
+
     try:
         spec = ModelSpec.model_validate(config)
     except ValidationError as e:
@@ -74,4 +77,3 @@ if __name__ == "__main__":
         raise
     else:
         print("Config valid. Parse:", spec)
-        
