@@ -6,6 +6,7 @@ from scipy.linalg import expm
 from scipy.integrate import quad_vec
 import pytest
 
+
 @pytest.mark.parametrize(
     "k, r1, r2, ic, d1, d2",
     [
@@ -26,7 +27,7 @@ class Test2dExamples:
         c1 = pk.Compartment(id='c1', volume=1)
         c2 = pk.Compartment(id='c2', volume=1)
         # Create the flux between compartments
-        flux = pk.Flux(id = 'flux',
+        flux = pk.Flux(id='flux',
                        source=c1,
                        dest=c2,
                        rate_constant=k,
@@ -54,6 +55,7 @@ class Test2dExamples:
             dest=c2,
             regime='custom',
             dosage_func=d2)
+
         # Create the model and add components
         model = pk.CompartmentModel()
         model.add_compartment(c1)
@@ -63,8 +65,10 @@ class Test2dExamples:
         model.add_clearance(clearance1)
         model.add_clearance(clearance2)
         model.add_flux(flux)
+
         # Built
         model.build_linear_rhs()
+
         # Simulate the model
         t_span = [0, 10]
         results = model.run(t_span, ic)
@@ -79,11 +83,11 @@ class Test2dExamples:
             integral, _ = quad_vec(lambda s: mexp_func(-s) @ dosage_func(s), 0, t)
             return mexp_func(t) @ (ic + integral)
         expected = np.array([sol_func(t) for t in time_points])
-        
+
         # Extract mass in the two compartment as array
         c1_mass = results['c1'].data
         c2_mass = results['c2'].data
-        
+
         # Check that the simulated results match the expected results, to 2 decimal places (any more and numerical errors creep in)
-        npt.assert_allclose(c1_mass, expected[:,0], rtol = 1e-2)
-        npt.assert_allclose(c2_mass, expected[:,1], rtol = 1e-2)
+        npt.assert_allclose(c1_mass, expected[:, 0], rtol=1e-2)
+        npt.assert_allclose(c2_mass, expected[:, 1], rtol=1e-2)
