@@ -15,7 +15,7 @@ import warnings
 import logging
 
 # Module packages
-from builtin_fluxes import constant_dose
+from .builtin_fluxes import constant_dose
 
 def combine_functions(*funcs):
     """Combine multiple scalar time-dependent functions into one vector-valued function.
@@ -279,7 +279,7 @@ class CompartmentModel:
 
         sol = solve_ivp(self.rhs, t_span, y0, t_eval=t_eval, vectorized=False)
         da_dct = {}
-        for idx, name in enumerate(self.compartment_names):
+        for idx, name in enumerate(self.compartments.keys()):
             da_dct[name] = xr.DataArray(data = sol.y[idx, :], coords = {'time': sol.t})
         ds = xr.Dataset(da_dct)
         return ds
@@ -294,11 +294,12 @@ class CompartmentModel:
             - fig: matplotlib.figure.Figure: The figure object containing the plots.
             - axs: np.ndarray: The array of axes objects for each compartment plot.
         """
-        fig, axs = plt.subplots(self.num_compartments, 1, sharex=True)
-        for idx, name in enumerate(self.compartment_names):
+        num_compartments = len(self.compartments)
+        fig, axs = plt.subplots(num_compartments, 1, sharex=True)
+        for idx, name in enumerate(self.compartments.keys()):
             ds[name].plot(ax=axs[idx])
             axs[idx].set_ylabel(f'$q_{{{name}}}$')
-            if idx < self.num_compartments - 1:
+            if idx < num_compartments - 1:
                 axs[idx].set_xlabel(None)
         axs[-1].set_xlabel('$t$')
         axs[0].set_title('Compartment masses over time')
@@ -435,13 +436,13 @@ if __name__ == "__main__":
     assert result == pytest.approx(np.asarray(expected), abs=1e-8)
     print("Success")
 
-# TODO - nice print statments for all the classes
-# TODO - check if classes get copied or smth
-# TODO - get a config from a file
+    # TODO - nice print statments for all the classes
+    # TODO - check if classes get copied or smth
+    # TODO - get a config from a file
 
 
-# identity check (preferred)
-if c_p_flux.source is central_clr.source:
-    print("They are the same object (identity).")
-else:
-    print("Different objects (even if equal by ==).")
+    # identity check (preferred)
+    if c_p_flux.source is central_clr.source:
+        print("They are the same object (identity).")
+    else:
+        print("Different objects (even if equal by ==).")
