@@ -11,10 +11,13 @@ def cmodel_1():
     Fixture for a simple two-compartment model.
     No fluxes, clearances, or dosages added.
     """
-    return pk.CompartmentModel(
-        compartment_names=['central', 'peripheral'],
-        compartment_volumes=[22, 7]
-    )
+    config = {
+        "compartments": {
+            "central":    22.0,
+            "peripheral": 7.0,
+        }
+    }
+    return pk.CompartmentModel.from_config(config)
 
 class TestCompartmentModel:
     """
@@ -24,20 +27,13 @@ class TestCompartmentModel:
         """
         Tests CompartmentModel creation.
         """
-        # Check if attributes are stored correctly in a model object
-        assert cmodel_1.compartment_names == ["central", "peripheral"]
-        assert cmodel_1.compartment_volumes == [22, 7]
+        from collections import OrderedDict
 
-    def test_create_with_invalid_inputs(self):
-        """
-        Tests CompartmentModel creation with mismatched lengths of names and volumes.
-        """
-
-        # Test with mismatched lengths of names and volumes
-        with pytest.raises(ValueError):
-            pk.CompartmentModel(
-                compartment_names   = ['central','peripheral'],
-                compartment_volumes = [1,2,3])
+        assert isinstance(cmodel_1, pk.CompartmentModel)
+        assert cmodel_1.model_built == False
+        assert cmodel_1.model_changed_since_last_build == True
+        assert isinstance(cmodel_1.compartments, OrderedDict)
+        #assert isinstance(cmodel_1.compartments['central'], pk.CompartmentModel.Compartment)
             
     def test_add_flux_invalid_rate_law(self, cmodel_1):
         """
