@@ -1,11 +1,21 @@
-import warnings
+# Data types and classes
 from typing import Sequence, Callable
+from collections import OrderedDict
+from dataclasses import dataclass
+from enum import Enum
+
+# Maths + plotting
 from scipy.integrate import solve_ivp
 import matplotlib.pyplot as plt
 import numpy as np
 import xarray as xr
+
+# Logging
+import warnings
 import logging
 
+# Module packages
+from builtin_fluxes import constant_dose
 
 def combine_functions(*funcs):
     """Combine multiple scalar time-dependent functions into one vector-valued function.
@@ -20,134 +30,227 @@ def combine_functions(*funcs):
         return np.array([f(x) for f in funcs])
     return vector_func
 
+@dataclass
+class Compartment:
+    """Represents a compartment/reservoir within the organism"""
+    id: str
+    volume: float
+
+class Nature(str, Enum):  # str mixin allows JSON serialization
+    BIDIRECTIONAL = "bidirectional"
+    UNIDIRECTIONAL = "unidirectional"
+
+@dataclass
+class Flux:
+    """Represents a flux connecting two compartments"""
+    id: str
+    source: Compartment
+    dest:   Compartment
+    rate_constant: float
+    rate_law: str = "first" # first or zeroth
+    nature: Nature = Nature.BIDIRECTIONAL
+    
+
+@dataclass 
+class Clearance:
+    """Represents a compound leaving a compartment"""
+    id: str
+    source: Compartment
+    rate_constant: float
+    rate_law: str = "first" # first or zeroth
+
+@dataclass
+class Dosage:
+    """Represents a compound entering a compartment"""
+    id: str
+    dest: Compartment
+    regime:str = "constant" # Also supports "custom"
+    rate_constant: float = 0 # This rate constant is used for the constant dosing regime
+    dosage_func: Callable = None
+
 class CompartmentModel:
     """Represents the organism as multiple compartments, with fluxes within and in an out of the system
 
     ### Attributes:
-        compartment_names (list[str]): Names of compartments.
-        compartment_volumes (list[float]): Volume of each compartment.
-        num_compartments (int): Number of compartments.
-        rhs_matrix (np.ndarray): Coefficient matrix for linear contribution to d/dt x (shape n x n).
-        rhs_cst_vector (np.ndarray): Constant vector contribution to RHS (shape n).
-        dosage_added (list[bool]): Flags whether a dosage function was added per compartment.
-        dosage_lst (list[Callable[[float], float]]): Per-compartment dosage functions.
+        compartments (OrderedDict[str: Compartment])
+        fluxes (OrderedDict[str: Flux])
+        dosages (OrderedDict[str: Clearance])
+        clearances (OrderedDict[str: Dosage])
+
         model_built (bool): Flag to track if the model has been built.
         model_changed_since_last_build (bool): Flag to track if changes have been made to the model
             in which case it needs to be rebult.
+
         rhs (Callable[[float, np.ndarray], np.ndarray]): RHS function that computes dydt = f(t, y).
     """
-    def __init__(self, compartment_names:(Sequence[str]), compartment_volumes:(Sequence[float])):
-        """Initialise the compartment model.
+    def __init__(self):
+        """Initialise the compartment model."""
 
-        ### Args:
-            compartment_names: Sequence of compartment names.
-            compartment_volumes: Sequence of compartment volumes (must match names length).
-        """
-        if len(compartment_names) != len(compartment_volumes):
-            raise ValueError("compartment_names and compartment_volumes must have the same length")
+        self.compartments: "OrderedDict[str: Compartment]"  = OrderedDict()
+        self.fluxes:       "OrderedDict[str: Flux]"         = OrderedDict()
+        self.clearances:   "OrderedDict[str: Clearance]"    = OrderedDict()
+        self.dosages:      "OrderedDict[str: Dosage]"       = OrderedDict()
         
-        self.compartment_names = compartment_names
-        self.compartment_volumes = compartment_volumes
-
-        self.num_compartments = len(self.compartment_names)
-        self.rhs_matrix = np.zeros((self.num_compartments, self.num_compartments)) # RHS coefficient matrix
-        self.rhs_cst_vector = np.zeros(self.num_compartments) # Constant vector for RHS 
-        self.dosage_added = [False for c in compartment_names] # Keeps track of which compartments have a dosage specified
-        self.dosage_lst = [lambda t: 0 for c in compartment_names] # Stores all the dosage functions
-
+        # Flags to check if the model has been built
         self.model_built = False 
         self.model_changed_since_last_build = True
 
-    def add_flux(self, from_compartment: str, to_compartment: str, rate_constant: float, rate_law: str = "first", nature: str = 'diffusive'):
-        """Add a flux between two compartments
-
-        ### Args:
-            from_compartment: Source compartment name.
-            to_compartment: Destination compartment name.
-            rate_constant: Rate constant (units depend on model).
-            rate_law: 'first' for first order (proportional to concentration) or 'zero' for zeroth (constant).
-            nature: 'diffusive' for bidirectional flux proportional to concentration gradient, 'one-way' for unidirectional flux.
-        """
-        source_idx = self.compartment_names.index(from_compartment)
-        source_volume = self.compartment_volumes[source_idx]
-        dest_idx = self.compartment_names.index(to_compartment)
-        dest_volume = self.compartment_volumes[dest_idx]
-
-        if nature not in ['diffusive', 'one-way']:
-            raise NotImplementedError("Only 'diffusive' and 'one-way' flux natures are supported!")
-        if rate_law not in ['first', 'zero']:
-            raise NotImplementedError("Only first or zeroth order fluxes are supported!")
-
-        if rate_law == 'first':
-            self.rhs_matrix[source_idx, source_idx] += - rate_constant / source_volume
-            self.rhs_matrix[dest_idx, source_idx]   += + rate_constant / source_volume
-            if nature == 'diffusive':
-                self.rhs_matrix[source_idx, dest_idx]   += + rate_constant / dest_volume
-                self.rhs_matrix[dest_idx, dest_idx]     += - rate_constant / dest_volume
-        elif rate_law == 'zero':
-            warnings.warn("Zeroth order fluxes are supported, but implementation is non-physical.")
-            self.rhs_cst_vector[source_idx] += - rate_constant
-            self.rhs_cst_vector[dest_idx]   += + rate_constant
+    def add_compartment(self, comp:Compartment):
+        if comp.id in self.compartments:
+            raise KeyError(f"Compartment with id '{comp.id}' alredy exists in the model!")
         
-        self.model_changed_since_last_build = True # System state has changed, model needs to be rebuilt before running
-        
-    def add_clearance(self, from_compartment: str, rate_constant: float, rate_law: str = "first"):
-        """Add clearance from a compartment (out of system).
-
-        Args:
-            from_compartment: Compartment name where clearance occurs.
-            rate_constant: Rate constant (first-order) or constant (zero-order).
-            rate_law: 'first' or 'zero'.
-        """
-
-        source_idx = self.compartment_names.index(from_compartment)
-        source_volume = self.compartment_volumes[source_idx]
-
-        if rate_law == 'first':
-            self.rhs_matrix[source_idx, source_idx] += - rate_constant / source_volume
-        elif rate_law == 'zero':
-            warnings.warn("Zeroth order fluxes are supported, but implementation is non-physical.")
-            self.rhs_cst_vector[source_idx] += - rate_constant
-        else:
-            raise NotImplementedError("Only first or zeroth order clearances are supported!")
-        
-        self.model_changed_since_last_build = True # System state has changed, model needs to be rebuilt before running
+        self.compartments[comp.id] = comp
+        self.model_changed_since_last_build = True
     
-    def add_dosage(self, compartment_name: str, dosage_func: Callable[[float], float]):
-        """Add a time-dependent dosage function to a compartment.
 
-        Args:
-            compartment_name: Which compartment receives dosage.
-            dosage_func: Callable f(t) returning the dosage rate at time t.
-
-        Notes:
-            Only one dosage function per compartment is stored; subsequent calls overwrite.
-        """
-         
-        compartment_idx = self.compartment_names.index(compartment_name)
-
-        if self.dosage_added[compartment_idx]:
-            warnings.warn("Only one dosage regime per compartment supported. Overwriting with most recent dosage.")
-
-        self.dosage_lst[compartment_idx] = dosage_func
-        self.dosage_added[compartment_idx] = True
-
-        self.model_changed_since_last_build = True # System state has changed, model needs to be rebuilt before running
-
-    def build(self):
-        """Build and ODE system to be solved with scipy.integrate.solve_ivp
+    def add_flux(self, flux:Flux):
+        if flux.id in self.fluxes:
+            raise KeyError(f"Flux with id '{flux.id}' alredy exists in the model!")
         
-        ### Returns:
-        Callable[[float, np.ndarray], np.ndarray]: RHS function that computes dydt = f(t, y).
-        """
-        dosage_func_vector = combine_functions(*self.dosage_lst)
+        if flux.source.id not in self.compartments or flux.dest.id not in self.compartments:
+            raise KeyError(f"Can't add flux to the model: one or both compartments {flux.source.id} or {flux.dest.id} are not present!")
+        
+        self.fluxes[flux.id] = flux
+        self.model_changed_since_last_build = True
+
+    def add_clearance(self, clr:Clearance):
+        if clr.id in self.clearances:
+            raise KeyError(f"Clerance with id '{clr.id}' alredy exists in the model!")
+        
+        if clr.source.id not in self.compartments:
+            raise KeyError(f"Can't a clearance to the model: compartment {clr.source.id} is not present")
+        
+        self.clearances[clr.id] = clr
+        self.model_changed_since_last_build = True
+
+    def add_dosage(self, dsg:Dosage):
+        if dsg.id in self.dosages:
+            raise KeyError(f"Dosage with id '{dsg.id}' alredy exists in the model!")
+        
+        if dsg.dest.id not in self.compartments:
+            raise KeyError(f"Can't a soxage to the model: compartment {dsg.dest.id} is not present")
+        
+        self.dosages[dsg.id] = dsg
+        self.model_changed_since_last_build = True
+
+    @classmethod
+    def from_config(cls, config): #TODO check the config against a schema, add support for missing arguments
+        model = cls()
+
+        for id, vol in config["compartments"].items():
+            model.add_compartment(
+                Compartment(
+                    id=id,
+                    volume=vol
+                )
+            )
+
+        if config["fluxes"] != None:     
+            for id, flux in config["fluxes"].items():
+                model.add_flux(
+                    Flux(
+                        id=id,
+                        source=model.compartments[flux["source"]],
+                        dest=model.compartments[flux["dest"]],
+                        rate_constant = flux["rate_constant"],
+                        nature = flux["nature"],
+                        rate_law = flux["rate_law"]
+                    )
+                )
+
+        if config["clearances"] != None:
+            for id, clr in config["clearances"].items():
+                model.add_clearance(
+                    Clearance(
+                        id=id,
+                        source=model.compartments[clr["source"]],
+                        rate_constant = clr["rate_constant"],
+                        rate_law = clr["rate_law"]
+                    )
+                )
+
+        if config["dosages"] != None:
+            for id, dsg in config["dosages"].items():
+                model.add_dosage(
+                    Dosage(
+                        id=id,
+                        dest=model.compartments[dsg["dest"]],
+                        regime=dsg["regime"],
+                        rate_constant = dsg["rate_constant"],
+                    )
+                )
+
+        return model
+        
+
+    def build_linear_rhs(self):
+        # TODO: Add checks to make sure the model is buildable? E.g. the kind of fluxes present in the system
+
+        for flux in self.fluxes.values():
+            if flux.nature not in  ["bidirectional", "unidirectional"]:
+                raise NotImplementedError("Only bidirectional fluxes are supported!")
+            if flux.rate_law not in ["first", "zeroth"]:
+                raise NotImplementedError("Only first-order and zero-order fluxes are supported!")
+        
+        n = len(self.compartments)
+        A = np.zeros((n, n), dtype = float) # RHS coefficient matrix
+        b = np.zeros(n, dtype=float) # Constant vector for RHS 
+
+        # Build a numeric index of compartments
+        self.comp_index = {comp.id: i for i, comp in enumerate(self.compartments.values())} # TODO: this may be moved to a separate method in the future
+
+        # Fluxes
+        for flux in self.fluxes.values():
+            src_idx = self.comp_index[flux.source.id]
+            dst_idx   = self.comp_index[flux.dest.id]
+            if flux.rate_law == 'first':
+                A[src_idx, src_idx] += - flux.rate_constant / flux.source.volume
+                A[dst_idx, src_idx] += + flux.rate_constant / flux.source.volume
+
+                if flux.nature == 'bidirectional':
+                    A[src_idx, dst_idx]   += + flux.rate_constant / flux.dest.volume
+                    A[dst_idx, dst_idx]   += - flux.rate_constant / flux.dest.volume
+
+            elif flux.rate_law == 'zero':
+                warnings.warn("Zeroth order fluxes are supported, but implementation is non-physical.")
+                if flux.nature == 'bidirectional':
+                    b[src_idx] += - flux.rate_constant
+                    b[dst_idx] += + flux.rate_constant
+
+        # Clearances
+        for clr in self.clearances.values():
+            src_idx = self.comp_index[clr.source.id]
+            if clr.rate_law == 'first':
+                A[src_idx, src_idx] += - clr.rate_constant / clr.source.volume
+            elif clr.rate_law == 'zero':
+                warnings.warn("Zeroth order clerances are supported, but implementation is non-physical.")
+                b[src_idx] += - clr.rate_constant
+            else: 
+                raise NotImplementedError("Only first or zeroth order clearances are supported!")
+
+        # Dosages
+        dosage_lst = [lambda t: 0 for c in range(n)] # Stores all the dosage functions
+        for dsg in self.dosages.values():
+            dst_idx = self.comp_index[dsg.dest.id]
+            if dsg.regime == "constant":        # TO DO: needs more checks for this loop
+                dosage_lst[dst_idx] = constant_dose(dsg.rate_constant)
+            elif dsg.regime == "custom":
+                dosage_lst[dst_idx] = dsg.dosage_func
+            else:
+                raise NotImplementedError(f"Dosing regime {dsg.regime} is not supported!")
+
+        d = combine_functions(*dosage_lst)
+
+        # Build the final callable
         def rhs(t, y):
-            dydt = self.rhs_matrix @ y + self.rhs_cst_vector + dosage_func_vector(t)
+            dydt = A @ y + b + d(t)
             return dydt
         
-        self.model_changed_since_last_build = False
-        self.model_built = True
+        self.A = A
+        self.b = b
         self.rhs = rhs
+        self.model_built = True
+        self.model_changed_since_last_build = False
     
     def run(self, t_span:Sequence[float], y0:Sequence[float], t_eval:Sequence[float]=None):
         """Solves (and builds, if self.build() has not been called previously) the ODE system.
@@ -203,8 +306,142 @@ class CompartmentModel:
 
 
 
-  
+if __name__ == "__main__":
+    central = Compartment(
+        id="central", # TODO make it generate an id if it's not provided?
+        volume=22
+    )
+    peripheral = Compartment(
+        id="peripheral",
+        volume=7
+    )
+
+    c_p_flux = Flux(
+        id="c_p_flux",
+        source=central,
+        dest=peripheral,
+        rate_constant=5,
+        nature="bidirectional",
+        rate_law="first"
+    )
+
+    central_clr = Clearance(
+        id="central_clearance",
+        source=central,
+        rate_constant=5,
+        rate_law="first"
+    )
+
+    central_dsg = Dosage(
+        id="central_dosage",
+        dest=central,
+        regime="constant",
+        rate_constant=1
+    )
+
+    model = CompartmentModel()
+    
+    model.add_compartment(central)
+    model.add_compartment(peripheral)
+
+    model.add_flux(c_p_flux)
+
+    model.add_clearance(central_clr)
+
+    model.add_dosage(central_dsg)
+
+    model.build_linear_rhs()
+
+    import pytest
+    y_init = np.array([22.0, 7.0])
+    expected = np.array([-4.0, 0.0])
+    result = model.rhs(5, np.array(y_init))
+    assert result == pytest.approx(np.asarray(expected), abs=1e-8)
+    print("Success")
+    
+
+    config = {
+
+        "compartments": {
+            "central":    22.0,
+            "peripheral": 7.0,
+        },
+
+        "fluxes": {
+            "c_p": {
+                "source":"central",
+                "dest": "peripheral",
+                "rate_constant": 5.0,
+                "nature":"bidirectional",
+                "rate_law":"first"
+            }
+        },
+
+        "clearances": {
+            "central_clearance":{
+                "source":"central",
+                "rate_constant": 5.0,
+                "rate_law":"first"
+            }
+        },
+
+        "dosages": {
+            "central_dosage":{
+                "dest":"central",
+                "regime":"constant",
+                "rate_constant": 1.0,
+            }
+        }
+    }
+
+    model2 = CompartmentModel.from_config(config)
+    model2.build_linear_rhs()
+    result = model2.rhs(5, np.array(y_init))
+    assert result == pytest.approx(np.asarray(expected), abs=1e-8)
+    print("Success")
+
+    config3 = {
+
+        "compartments": {
+            "central":    22.0,
+            "peripheral": 7.0,
+        },
+
+        "fluxes": {
+            "c_p": {
+                "source":"central",
+                "dest": "peripheral",
+                "rate_constant": 5.0,
+                "nature":"bidirectional",
+                "rate_law":"first"
+            }
+        },
+
+        "clearances": None,
+
+        "dosages": {
+            "central_dosage":{
+                "dest":"central",
+                "regime":"constant",
+                "rate_constant": 1.0,
+            }
+        }
+    }
+
+    model3 = CompartmentModel.from_config(config3)
+    model3.build_linear_rhs()
+    result = model3.rhs(5, np.array(y_init))
+    expected=np.array([1.0, 0.0])
+    assert result == pytest.approx(np.asarray(expected), abs=1e-8)
+    print("Success")
+
+# TODO - nice print statments for all the classes
+# TODO - check if classes get copied or smth
+# TODO - get a config from a file
 
 
-
-
+# identity check (preferred)
+if c_p_flux.source is central_clr.source:
+    print("They are the same object (identity).")
+else:
+    print("Different objects (even if equal by ==).")
