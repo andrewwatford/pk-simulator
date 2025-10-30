@@ -12,8 +12,12 @@ pk-model is a Python library for creating, solving, and visualising the solution
 - Plot the results
 
 ## Installation
-### The pkmodel library can be installed via pip
+### via pip
      pip install pkmodel
+### via source
+     git clone https://github.com/andrewwatford/pk-simulator.git
+     cd pk-simulator
+     pip install –e
 
 ## Basic Example Script:
 ---
@@ -67,3 +71,10 @@ pk-model is a Python library for creating, solving, and visualising the solution
      #Plots
      fig, axs = model.plot_all(result)
      plt.savefig('./example.png')
+
+## License
+---
+This project is licensed under the MIT license
+## Contributions
+---
+To contibute, please open an issue or submit a pull request on GitHub.
