@@ -2,23 +2,25 @@ import numpy.testing as npt
 import pkmodel as pk
 from pkmodel.builtin_fluxes import constant_dose
 import numpy as np
+from scipy.integrate import quad
 import pytest
 
 @pytest.mark.parametrize(
-    "r_D, r_C, ic",
+    "r_C, ic, dosage_func",
     [
-        (0.1, 1, 0),
-        (10, 0.5, 0),
-        (5, 0.2, 10),
-        (20, 1.0, 5),
+        (1, 0, constant_dose(0.1)),
+        (0.5, 0, constant_dose(10)),
+        (0.2, 10, constant_dose(5)),
+        (1.0, 5, constant_dose(0)),
+        (1.0, 5, lambda t: 10 * np.cos(np.pi * t / 3)**10)
     ])
-class TestExamples:
+class Test1dExamples:
     """
     Tests simple examples using the library.
     """
-    def test_1d_example(self, r_D, r_C, ic):
+    def test_1d_example(self, r_C, ic, dosage_func):
         """
-        Tests a model with one compartment, constant dosing and first-order clearance.
+        Tests a model with one compartment and first-order clearance.
         """
         # Create a one-compartment model
         model = pk.CompartmentModel(
@@ -28,7 +30,7 @@ class TestExamples:
         # Add a constant dose flux into the central compartment
         model.add_dosage(
             compartment_name   = 'central',
-            dosage_func        = constant_dose(r_D))
+            dosage_func        = dosage_func)
         
         # Add a first-order elimination clearance from the central compartment
         model.add_clearance(
@@ -43,7 +45,10 @@ class TestExamples:
         time_points = results.time.data
 
         # Define the expected result
-        expected = ic * np.exp(- r_C * time_points) + (r_D / r_C) * (1 - np.exp(- r_C * time_points))
+        def sol_func(t):
+            integral, _ = quad(lambda s: np.exp(r_C * s) * dosage_func(s), 0, t)
+            return np.exp(- r_C * t) * (ic + integral)
+        expected = [sol_func(t) for t in time_points]
         
         # Extract mass in the central compartment as array
         central_mass = results['central'].data
