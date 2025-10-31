@@ -161,6 +161,16 @@ result = model.run(t_span, y0)
 fig, axs = model.plot_all(result)
 plt.savefig('./example.png')
 ```
+Note that at present, time-dependent dosages are only able to be added by creating a `Dosage` object directly, and adding it to the model. For example:
+```
+central_dsg = Dosage(
+    id='central_dsg',
+    dest=central,
+    regime='custom',
+    dosage_func=my_dosage_func
+)
+model.add_dosage(central_dsg)
+```
 ## Visualisation
 ### Printing out the model architecture
 ```python
@@ -168,8 +178,8 @@ print(model)
 ```
 ```text
 This is a model containing the following compartments:
-        Compatment 'central', with a volume of 22.0 L
-        Compatment 'peripheral', with a volume of 7.0 L
+        Compartment 'central', with a volume of 22.0 L
+        Compartment 'peripheral', with a volume of 7.0 L
 
 These are connected by the following fluxes (if any):
         Flux 'c_p' (bidirectional, first-order, with a rate constant of 5.0), connecting compartments 'central' and 'peripheral'.
@@ -180,9 +190,15 @@ With the following dosages(if any):
 And the following clearances (if any):
         Clearance 'central_clearance' (first-order, with a rate constant of 5.0), representing elimination from the compartment 'central'.
 ```
-
-### Via Graphviz 
-Note: Graphviz needs to be installed from your system's package manager first
+### Printing out model graphically
+We also have rudimentary support for printing out a graphical representation of the model in two different ways (pyplot and graphviz).
+#### Via Pyplot
+A NetworkX object can be created using the `construct_graph` method. The `draw_basic_graph_pyplot` method can be used to produce the graphical representation. For example:
+```
+fig, axs = model.draw_basic_graph_pyplot()
+```
+#### Via Graphviz 
+Note: Graphviz needs to be installed from your system's package manager (apt-get, etc.) first
 ```python
 pip install graphviz
 Fig = model.plot_using_graphviz(filename="compartmentmodel_graphviz")
