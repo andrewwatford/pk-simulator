@@ -1,28 +1,60 @@
 import matplotlib.pyplot as plt
-import numpy as np
 from pkmodel.CompartmentModel import CompartmentModel
 
-# Define model
-volumes_dict = {'dose': 10, 'peripheral': 7, 'clearance': 20}
-model = CompartmentModel(compartment_names = list(volumes_dict.keys()), compartment_volumes = list(volumes_dict.values()))
-# Adding fluxes, dosage, and clearances
-model.add_flux(from_compartment = 'dose',
-                to_compartment = 'peripheral', 
-                rate_law = 'first', # or 'zero'
-                rate_constant = 3)
-model.add_flux(from_compartment = 'peripheral',
-                to_compartment = 'clearance',
-                rate_law = 'first', # or 'zero'
-                rate_constant = 2)
-model.add_flux(from_compartment = 'dose',
-                to_compartment = 'clearance',
-                rate_law = 'first', # or 'zero'
-                rate_constant = 2)
-model.add_clearance(from_compartment = 'clearance', 
-                    rate_law = 'first', # or 'zero'
-                    rate_constant = 5)
+# Define model config
+config = {
+
+    "compartments": {
+        "dose": 10.0,
+        "peripheral": 7.0,
+        "clearance": 20.0,
+    },
+
+    "fluxes": {
+        "d_p": {
+            "source": "dose",
+            "dest": "peripheral",
+            "rate_constant": 3.0,
+            "nature": "bidirectional",
+            "rate_law": "first"
+        },
+        "p_clr": {
+            "source": "peripheral",
+            "dest": "clearance",
+            "rate_constant": 2.0,
+            "nature": "bidirectional",
+            "rate_law": "first"
+        },
+        "d_clr": {
+            "source": "dose",
+            "dest": "clearance",
+            "rate_constant": 2.0,
+            "nature": "bidirectional",
+            "rate_law": "first"
+        }
+    },
+
+    "clearances": {
+        "clearance_clearance": {
+            "source": "clearance",
+            "rate_constant": 5.0,
+            "rate_law": "first"
+        }
+    }
+}
+# Instantiate the model object
+model = CompartmentModel.from_config(config)
+# Build and solve the model
+model.build_linear_rhs()
+# Initial conditions and volumes
+y0 = [1, 0, 0]
+t_span = [0, 30]
 # running the model
-out = model.run(y0 = [1, 0, 0], t_span = [0, 30], t_eval = np.linspace(0, 30, 1000))
+result = model.run(
+    y0=y0,
+    t_span=t_span)
 # Plots
-fig, axs = model.plot_all(out)
+fig, axs = model.plot_all(result)
 plt.savefig('./three_cmpt_example.png')
+fig, axs = model.draw_basic_graph_pyplot()
+plt.savefig('./three_cmpt_example_graph.png')

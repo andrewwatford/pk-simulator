@@ -1,10 +1,29 @@
-import warnings
+# Data types and classes
 from typing import Sequence, Callable
+from collections import OrderedDict
+from dataclasses import dataclass
+from pydantic import ValidationError
+import itertools
+
+# Maths + plotting
+from graphviz import Digraph
 from scipy.integrate import solve_ivp
 import matplotlib.pyplot as plt
+import networkx as nx
 import numpy as np
 import xarray as xr
+
+# Logging
+import warnings
 import logging
+
+# I/O
+from pathlib import Path
+import json
+
+# Module packages
+from pkmodel.builtin_fluxes import constant_dose
+from pkmodel.config_validation import ModelSpec
 
 
 def combine_functions(*funcs):
@@ -20,136 +39,320 @@ def combine_functions(*funcs):
         return np.array([f(x) for f in funcs])
     return vector_func
 
+
+@dataclass
+class Compartment:
+    """Represents a compartment/reservoir within the organism"""
+    volume: float = 10.0
+    id: str | None = None
+
+    _counter = itertools.count(1)
+
+    def __post_init__(self):
+        if self.id is None:
+            self.id = f"comp_{next(self._counter):02d}"
+
+    def __str__(self):
+        desc = f"Compartment '{self.id}', with a volume of {self.volume:.1f} L"
+        return desc
+
+
+@dataclass
+class Flux:
+    """Represents a flux connecting two compartments"""
+    source: Compartment
+    dest: Compartment
+    rate_constant: float
+    rate_law: str = "first"
+    nature: str = "bidirectional"
+    id: str | None = None
+
+    _counter = itertools.count(1)
+
+    def __post_init__(self):
+        if self.id is None:
+            self.id = f"flux_{next(self._counter):02d}"
+        if self.rate_law not in ['first', 'zero']:
+            raise ValueError(f"Rate law '{self.rate_law}' is not supported! Supported rate laws are 'first' and 'zero'.")
+        if self.nature not in ['unidirectional', 'bidirectional']:
+            raise ValueError(f"Nature '{self.nature}' is not supported! Supported natures are 'unidirectional' and 'bidirectional'.")
+
+    def __str__(self):
+        desc = f"Flux '{self.id}' ({self.nature}, {self.rate_law}-order, with a rate constant of {self.rate_constant}), connecting compartments '{self.source.id}' and '{self.dest.id}'."
+        return desc
+
+
+@dataclass
+class Clearance:
+    """Represents a compound leaving a compartment"""
+    source: Compartment
+    rate_constant: float
+    rate_law: str = 'first'
+    id: str | None = None
+
+    _counter = itertools.count(1)
+
+    def __post_init__(self):
+        if self.id is None:
+            self.id = f"clear_{next(self._counter):02d}"
+        if self.rate_law not in ['first', 'zero']:
+            raise ValueError(f"Rate law '{self.rate_law}' is not supported! Supported rate laws are 'first' and 'zero'.")
+
+    def __str__(self):
+        desc = f"Clearance '{self.id}' ({self.rate_law}-order, with a rate constant of {self.rate_constant}), representing elimination from the compartment '{self.source.id}'."
+        return desc
+
+
+@dataclass
+class Dosage:
+    """Represents a compound entering a compartment"""
+    dest: Compartment
+    regime: str = 'constant'
+    rate_constant: float = 0  # This rate constant is used for the constant dosing regime
+    dosage_func: Callable = None
+    id: str | None = None
+
+    _counter = itertools.count(1)
+
+    def __post_init__(self):
+        if self.id is None:
+            self.id = f"dose_{next(self._counter):02d}"
+        if self.regime not in ['constant', 'custom']:
+            raise ValueError(f"Dosage regime '{self.regime}' is not supported! Supported regimes are 'constant' and 'custom'.")
+
+    def __str__(self):
+        desc = f"Dosage '{self.id}' ({self.regime}), representing administration to the copmartment '{self.dest.id}'."
+        return desc
+
+
 class CompartmentModel:
     """Represents the organism as multiple compartments, with fluxes within and in an out of the system
 
     ### Attributes:
-        compartment_names (list[str]): Names of compartments.
-        compartment_volumes (list[float]): Volume of each compartment.
-        num_compartments (int): Number of compartments.
-        rhs_matrix (np.ndarray): Coefficient matrix for linear contribution to d/dt x (shape n x n).
-        rhs_cst_vector (np.ndarray): Constant vector contribution to RHS (shape n).
-        dosage_added (list[bool]): Flags whether a dosage function was added per compartment.
-        dosage_lst (list[Callable[[float], float]]): Per-compartment dosage functions.
+        compartments (OrderedDict[str: Compartment])
+        fluxes (OrderedDict[str: Flux])
+        dosages (OrderedDict[str: Clearance])
+        clearances (OrderedDict[str: Dosage])
+
         model_built (bool): Flag to track if the model has been built.
         model_changed_since_last_build (bool): Flag to track if changes have been made to the model
             in which case it needs to be rebult.
+
         rhs (Callable[[float, np.ndarray], np.ndarray]): RHS function that computes dydt = f(t, y).
     """
-    def __init__(self, compartment_names:(Sequence[str]), compartment_volumes:(Sequence[float])):
-        """Initialise the compartment model.
+    def __init__(self):
+        """Initialise the compartment model."""
 
-        ### Args:
-            compartment_names: Sequence of compartment names.
-            compartment_volumes: Sequence of compartment volumes (must match names length).
-        """
-        if len(compartment_names) != len(compartment_volumes):
-            raise ValueError("compartment_names and compartment_volumes must have the same length")
-        
-        self.compartment_names = compartment_names
-        self.compartment_volumes = compartment_volumes
+        self.compartments: "OrderedDict[str: Compartment]" = OrderedDict()
+        self.fluxes: "OrderedDict[str: Flux]" = OrderedDict()
+        self.clearances: "OrderedDict[str: Clearance]" = OrderedDict()
+        self.dosages: "OrderedDict[str: Dosage]" = OrderedDict()
 
-        self.num_compartments = len(self.compartment_names)
-        self.rhs_matrix = np.zeros((self.num_compartments, self.num_compartments)) # RHS coefficient matrix
-        self.rhs_cst_vector = np.zeros(self.num_compartments) # Constant vector for RHS 
-        self.dosage_added = [False for c in compartment_names] # Keeps track of which compartments have a dosage specified
-        self.dosage_lst = [lambda t: 0 for c in compartment_names] # Stores all the dosage functions
-
-        self.model_built = False 
+        # Flags to check if the model has been built
+        self.model_built = False
         self.model_changed_since_last_build = True
 
-    def add_flux(self, from_compartment: str, to_compartment: str, rate_constant: float, rate_law: str = "first", nature: str = 'diffusive'):
-        """Add a flux between two compartments
+        self.A = None
+        self.b = None
 
-        ### Args:
-            from_compartment: Source compartment name.
-            to_compartment: Destination compartment name.
-            rate_constant: Rate constant (units depend on model).
-            rate_law: 'first' for first order (proportional to concentration) or 'zero' for zeroth (constant).
-            nature: 'diffusive' for bidirectional flux proportional to concentration gradient, 'one-way' for unidirectional flux.
+    def __str__(self):
+        comp_info = []
+        for comp in self.compartments.values():
+            comp_info.append(comp.__str__())
+
+        flux_info = []
+        for flux in self.fluxes.values():
+            flux_info.append(flux.__str__())
+
+        clr_info = []
+        for clr in self.clearances.values():
+            clr_info.append(clr.__str__())
+
+        dsg_info = []
+        for dsg in self.dosages.values():
+            dsg_info.append(dsg.__str__())
+
+        out = f"""
+This is a model containing the following compartments:\n\t{"\n\t".join(comp_info)}
+
+These are connected by the following fluxes (if any):\n\t{"\n\t".join(flux_info)}
+
+With the following dosages(if any):\n\t{"\n\t".join(dsg_info)}
+
+And the following clearances (if any):\n\t{"\n\t".join(clr_info)}
         """
-        source_idx = self.compartment_names.index(from_compartment)
-        source_volume = self.compartment_volumes[source_idx]
-        dest_idx = self.compartment_names.index(to_compartment)
-        dest_volume = self.compartment_volumes[dest_idx]
+        return out
 
-        if nature not in ['diffusive', 'one-way']:
-            raise NotImplementedError("Only 'diffusive' and 'one-way' flux natures are supported!")
-        if rate_law not in ['first', 'zero']:
-            raise NotImplementedError("Only first or zeroth order fluxes are supported!")
+    def add_compartment(self, comp: Compartment):
+        if comp.id in self.compartments:
+            raise KeyError(f"Compartment with id '{comp.id}' alredy exists in the model!")
 
-        if rate_law == 'first':
-            self.rhs_matrix[source_idx, source_idx] += - rate_constant / source_volume
-            self.rhs_matrix[dest_idx, source_idx]   += + rate_constant / source_volume
-            if nature == 'diffusive':
-                self.rhs_matrix[source_idx, dest_idx]   += + rate_constant / dest_volume
-                self.rhs_matrix[dest_idx, dest_idx]     += - rate_constant / dest_volume
-        elif rate_law == 'zero':
-            warnings.warn("Zeroth order fluxes are supported, but implementation is non-physical.")
-            self.rhs_cst_vector[source_idx] += - rate_constant
-            self.rhs_cst_vector[dest_idx]   += + rate_constant
-        
-        self.model_changed_since_last_build = True # System state has changed, model needs to be rebuilt before running
-        
-    def add_clearance(self, from_compartment: str, rate_constant: float, rate_law: str = "first"):
-        """Add clearance from a compartment (out of system).
+        self.compartments[comp.id] = comp
+        self.model_changed_since_last_build = True
 
-        Args:
-            from_compartment: Compartment name where clearance occurs.
-            rate_constant: Rate constant (first-order) or constant (zero-order).
-            rate_law: 'first' or 'zero'.
-        """
+    def add_flux(self, flux: Flux):
+        if flux.id in self.fluxes:
+            raise KeyError(f"Flux with id '{flux.id}' alredy exists in the model!")
 
-        source_idx = self.compartment_names.index(from_compartment)
-        source_volume = self.compartment_volumes[source_idx]
+        if flux.source.id not in self.compartments or flux.dest.id not in self.compartments:
+            raise KeyError(f"Can't add flux to the model: one or both compartments {flux.source.id} or {flux.dest.id} are not present!")
 
-        if rate_law == 'first':
-            self.rhs_matrix[source_idx, source_idx] += - rate_constant / source_volume
-        elif rate_law == 'zero':
-            warnings.warn("Zeroth order fluxes are supported, but implementation is non-physical.")
-            self.rhs_cst_vector[source_idx] += - rate_constant
+        self.fluxes[flux.id] = flux
+        self.model_changed_since_last_build = True
+
+    def add_clearance(self, clr: Clearance):
+        if clr.id in self.clearances:
+            raise KeyError(f"Clerance with id '{clr.id}' alredy exists in the model!")
+
+        if clr.source.id not in self.compartments:
+            raise KeyError(f"Can't a clearance to the model: compartment {clr.source.id} is not present")
+
+        self.clearances[clr.id] = clr
+        self.model_changed_since_last_build = True
+
+    def add_dosage(self, dsg: Dosage):
+        if dsg.id in self.dosages:
+            raise KeyError(f"Dosage with id '{dsg.id}' alredy exists in the model!")
+
+        if dsg.dest.id not in self.compartments:
+            raise KeyError(f"Can't a soxage to the model: compartment {dsg.dest.id} is not present")
+
+        self.dosages[dsg.id] = dsg
+        self.model_changed_since_last_build = True
+
+    @classmethod
+    def from_config(cls, config):  # TODO check the config against a schema, add support for missing arguments
+
+        try:
+            spec = ModelSpec.model_validate(config)
+        except ValidationError as e:
+            print("Config invalid")
+            print(e.json())
+            raise
         else:
-            raise NotImplementedError("Only first or zeroth order clearances are supported!")
-        
-        self.model_changed_since_last_build = True # System state has changed, model needs to be rebuilt before running
+            logging.info("Config valid. Parse:", spec)
+
+        model = cls()
+
+        for id, vol in config["compartments"].items():
+            model.add_compartment(
+                Compartment(
+                    id=id,
+                    volume=vol
+                )
+            )
+
+        if config.get("fluxes") is not None:
+            for id, flux in config["fluxes"].items():
+                model.add_flux(
+                    Flux(
+                        id=id,
+                        source=model.compartments[flux["source"]],
+                        dest=model.compartments[flux["dest"]],
+                        rate_constant=flux["rate_constant"],
+                        nature=flux.get("nature", "bidirectional"),
+                        rate_law=flux.get("rate_law", "first"),
+                    )
+                )
+
+        if config.get("clearances") is not None:
+            for id, clr in config["clearances"].items():
+                model.add_clearance(
+                    Clearance(
+                        id=id,
+                        source=model.compartments[clr["source"]],
+                        rate_constant=clr["rate_constant"],
+                        rate_law=clr.get("rate_law", "first")
+                    )
+                )
+
+        if config.get("dosages") is not None:
+            for id, dsg in config["dosages"].items():
+                model.add_dosage(
+                    Dosage(
+                        id=id,
+                        dest=model.compartments[dsg["dest"]],
+                        regime=dsg.get("regime", "constant"),
+                        rate_constant=dsg["rate_constant"],
+                    )
+                )
+
+        return model
     
-    def add_dosage(self, compartment_name: str, dosage_func: Callable[[float], float]):
-        """Add a time-dependent dosage function to a compartment.
+    @classmethod
+    def from_json(cls, json_path):
+        """Load the model from a json file"""
+        path = Path(json_path)
+        try:
+            with open(path, "r") as f:
+                cfg = json.load(f)
+            return cls.from_config(cfg)
+        except Exception as e:
+            print("Failed to initialise a model from config due to the following error:")
+            print(e)
+    
+    def build_numeric_index(self):
+        self.comp_index = {comp.id: i for i, comp in enumerate(self.compartments.values())}  # TODO: this may be moved to a separate method in the future
 
-        Args:
-            compartment_name: Which compartment receives dosage.
-            dosage_func: Callable f(t) returning the dosage rate at time t.
+    def build_linear_rhs(self):
+        n = len(self.compartments)
+        A = np.zeros((n, n), dtype=float)  # RHS coefficient matrix
+        b = np.zeros(n, dtype=float)  # Constant vector for RHS
 
-        Notes:
-            Only one dosage function per compartment is stored; subsequent calls overwrite.
-        """
-         
-        compartment_idx = self.compartment_names.index(compartment_name)
+        # Build numeric index of compartments
+        self.build_numeric_index()
 
-        if self.dosage_added[compartment_idx]:
-            warnings.warn("Only one dosage regime per compartment supported. Overwriting with most recent dosage.")
+        # Fluxes
+        for flux in self.fluxes.values():
+            src_idx = self.comp_index[flux.source.id]
+            dst_idx = self.comp_index[flux.dest.id]
+            if flux.rate_law == 'first':
+                A[src_idx, src_idx] += - flux.rate_constant / flux.source.volume
+                A[dst_idx, src_idx] += + flux.rate_constant / flux.source.volume
 
-        self.dosage_lst[compartment_idx] = dosage_func
-        self.dosage_added[compartment_idx] = True
+                if flux.nature == 'bidirectional':
+                    A[src_idx, dst_idx] += + flux.rate_constant / flux.dest.volume
+                    A[dst_idx, dst_idx] += - flux.rate_constant / flux.dest.volume
 
-        self.model_changed_since_last_build = True # System state has changed, model needs to be rebuilt before running
+            elif flux.rate_law == 'zero':
+                warnings.warn("Zero order fluxes are supported, but implementation is non-physical.")
+                b[src_idx] += - flux.rate_constant
+                b[dst_idx] += + flux.rate_constant
 
-    def build(self):
-        """Build and ODE system to be solved with scipy.integrate.solve_ivp
-        
-        ### Returns:
-        Callable[[float, np.ndarray], np.ndarray]: RHS function that computes dydt = f(t, y).
-        """
-        dosage_func_vector = combine_functions(*self.dosage_lst)
+        # Clearances
+        for clr in self.clearances.values():
+            src_idx = self.comp_index[clr.source.id]
+            if clr.rate_law == 'first':
+                A[src_idx, src_idx] += - clr.rate_constant / clr.source.volume
+            elif clr.rate_law == 'zero':
+                warnings.warn("Zero order clerances are supported, but implementation is non-physical.")
+                b[src_idx] += - clr.rate_constant
+            else:
+                raise NotImplementedError("Only first or zero order clearances are supported!")
+
+        # Dosages
+        dosage_lst = [lambda t: 0 for c in range(n)]  # Stores all the dosage functions
+        for dsg in self.dosages.values():
+            dst_idx = self.comp_index[dsg.dest.id]
+            if dsg.regime == 'constant':
+                dosage_lst[dst_idx] = constant_dose(dsg.rate_constant)
+            else:  # Custom dosage function
+                dosage_lst[dst_idx] = dsg.dosage_func
+
+        d = combine_functions(*dosage_lst)
+
+        # Build the final callable
         def rhs(t, y):
-            dydt = self.rhs_matrix @ y + self.rhs_cst_vector + dosage_func_vector(t)
+            dydt = A @ y + b + d(t)
             return dydt
-        
-        self.model_changed_since_last_build = False
-        self.model_built = True
+
+        self.A = A
+        self.b = b
         self.rhs = rhs
-    
-    def run(self, t_span:Sequence[float], y0:Sequence[float], t_eval:Sequence[float]=None):
+        self.model_built = True
+        self.model_changed_since_last_build = False
+
+    def run(self, t_span: Sequence[float], y0: Sequence[float], t_eval: Sequence[float] = None):
         """Solves (and builds, if self.build() has not been called previously) the ODE system.
 
         ### Args:
@@ -166,21 +369,23 @@ class CompartmentModel:
         """
         if not self.model_built:
             logging.info("No build detected, building the model from scratch...")
-            self.build()
+            self.build_linear_rhs()
         else:
             if not self.model_changed_since_last_build:
                 logging.info("No changes detected since last build. Using the existing build.")
             else:
                 logging.info("Changes to the model detected since last build. Rebuilding the model...")
-                self.build()
+                self.build_linear_rhs()
 
         sol = solve_ivp(self.rhs, t_span, y0, t_eval=t_eval, vectorized=False)
         da_dct = {}
-        for idx, name in enumerate(self.compartment_names):
-            da_dct[name] = xr.DataArray(data = sol.y[idx, :], coords = {'time': sol.t})
+        for idx, name in enumerate(self.compartments.keys()):
+            da_dct[name] = xr.DataArray(
+                data=sol.y[idx, :],
+                coords={'time': sol.t})
         ds = xr.Dataset(da_dct)
         return ds
-    
+
     def plot_all(self, ds: xr.Dataset):
         """Plot all compartments from the output dataset.
 
@@ -191,20 +396,251 @@ class CompartmentModel:
             - fig: matplotlib.figure.Figure: The figure object containing the plots.
             - axs: np.ndarray: The array of axes objects for each compartment plot.
         """
-        fig, axs = plt.subplots(self.num_compartments, 1, sharex=True)
-        for idx, name in enumerate(self.compartment_names):
+        num_compartments = len(self.compartments)
+        fig, axs = plt.subplots(num_compartments, 1, sharex=True)
+        for idx, name in enumerate(self.compartments.keys()):
             ds[name].plot(ax=axs[idx])
             axs[idx].set_ylabel(f'$q_{{{name}}}$')
-            if idx < self.num_compartments - 1:
+            if idx < num_compartments - 1:
                 axs[idx].set_xlabel(None)
         axs[-1].set_xlabel('$t$')
         axs[0].set_title('Compartment masses over time')
         return fig, axs
+    
+    def generate_markdown(self, filename):
+        """
+        Generate a .md file to display the system of ODEs
+        """
+
+        # Build numeric index of compartments
+        self.build_numeric_index()
+
+        equations = {}
+
+        for i, comp_id in enumerate(self.compartments.keys()):
+            eq_terms = []
+            # Dosages
+            for dsg in self.dosages.values():
+                if dsg.dest.id == comp_id:
+                    if (dsg.regime == 'constant') and (dsg.rate_constant == 0):
+                        continue
+                    elif dsg.regime == 'constant':
+                        eq_terms.append(f"D_{{{i}}}")
+                    else:
+                        eq_terms.append(f"D_{{{i}}}(t)")
+            # Clearances
+            for clr in self.clearances.values():
+                if clr.rate_constant != 0:
+                    if clr.source.id == comp_id:
+                        if clr.rate_law == 'first':
+                            eq_terms.append(f"- C_{{{i}}}\\frac{{q_{{{i}}}}}{{V_{{{i}}}}}")
+                        elif clr.rate_law == 'zero':
+                            eq_terms.append(f"- C_{{{i}}}")
+            # Fluxes
+            for flux in self.fluxes.values():
+                if flux.rate_constant != 0:
+                    src_idx = self.comp_index[flux.source.id]
+                    dst_idx = self.comp_index[flux.dest.id]
+                    kstring = f"k_{{{src_idx},{dst_idx}}}"
+                    if flux.rate_law == 'zero':
+                        if flux.source.id == comp_id:
+                            eq_terms.append(f"- {kstring}")
+                        elif flux.dest.id == comp_id:
+                            eq_terms.append(f"+ {kstring}")
+                    elif flux.rate_law == 'first':
+                        if flux.nature == 'unidirectional':
+                            if flux.source.id == comp_id:
+                                eq_terms.append(f"- {kstring}\\frac{{q_{{{src_idx}}}}}{{V_{{{src_idx}}}}}")
+                            elif flux.dest.id == comp_id:
+                                eq_terms.append(f"+ {kstring}\\frac{{q_{{{src_idx}}}}}{{V_{{{src_idx}}}}}")
+                        elif (flux.nature == 'bidirectional'):
+                            if flux.source.id == comp_id:
+                                eq_terms.append(f"- {kstring}\\left(\\frac{{q_{{{src_idx}}}}}{{V_{{{src_idx}}}}} - \\frac{{q_{{{dst_idx}}}}}{{V_{{{dst_idx}}}}}\\right)")
+                            if flux.dest.id == comp_id:
+                                eq_terms.append(f"- {kstring}\\left(\\frac{{q_{{{dst_idx}}}}}{{V_{{{dst_idx}}}}} - \\frac{{q_{{{src_idx}}}}}{{V_{{{src_idx}}}}}\\right)")
+
+            if len(eq_terms) == 0:
+                equation = "0"
+            else:
+                equation = "".join(eq_terms)
+            equations[comp_id] = f"\\frac{{d q_{{{i}}}}}{{d t}} = {equation}"
+
+        with open(f"{filename}.md", "w", encoding="utf-8") as f:
+            # Write equations
+            f.write("### Equations\n---\n")
+            for eq in equations.values():
+                f.write(f"\n\n$$\n{eq}\n$$\n\n")
+            # Write table
+            f.write("### Compartments\n---\n")
+            f.write("\n\n| Index | Compartment |\n")
+            f.write("|-------|-------------|\n")
+            for i, comp_id in enumerate(self.compartments.keys()):
+                f.write(f"| {i}     | {comp_id}     |\n")
+            # Define some variables
+            f.write("### Variable definitions\n---\n")
+            f.write("\n\n| Symbol | Quantity |\n")
+            f.write("|-------|-------------|\n")
+            f.write("| $t$ | Time |\n")
+            f.write("| $q_i$ | Mass of drug in compartment i |\n")
+            f.write("| $V_i$ | Volume of compartment i |\n")
+            if len(self.dosages) > 0:
+                f.write("| $D_i$ | Dosage into compartment i |\n")
+            if len(self.clearances) > 0:
+                f.write("| $C_i$ | Clearance rate from compartment i |\n")
+            if len(self.fluxes) > 0:
+                f.write("| $k_{i,j}$ | Rate constant for flux between compartments i and j |\n")
+
+    def construct_graph(self):
+        """Construct a NetworkX graph representation of the compartment model.
+
+        ### Returns:
+            - g: networkx.MultiDiGraph. A directed multigraph representing the compartment model.
+        """
+        # Create the empty directed multigraph
+        g = nx.MultiDiGraph()
+        # Add compartments as nodes, as well as a generic IN and OUT node for each
+        for comp_name, comp in self.compartments.items():
+            g.add_node(comp_name, subset="compartment", **comp.__dict__)
+            g.add_node(f"{comp_name}_IN", subset="in", shape="point")
+            g.add_node(f"{comp_name}_OUT", subset="out", shape="point")
+        # Add fluxes as edges
+        for flux_name, flux in self.fluxes.items():
+            g.add_edge(flux.source.id, flux.dest.id, key=flux_name, **flux.__dict__)
+        # Add clearances as edges
+        for clear_name, clear in self.clearances.items():
+            g.add_edge(clear.source.id, f"{clear.source.id}_OUT", key=clear_name, nature="clearance", **clear.__dict__)
+        # Add dosages as edges
+        for dose_name, dose in self.dosages.items():
+            g.add_edge(f"{dose.dest.id}_IN", dose.dest.id, key=dose_name, nature="dosage", **dose.__dict__)
+        return g
+
+    def draw_basic_graph_pyplot(
+            self,
+            node_shape: str = "o",
+            node_size: int = 4000,
+            font_size: int = 11,
+            node_color: str = "white",
+            edge_color: str = "black",
+            linewidths: int = 2,
+            arrowsize: int = 20,
+            rad: float = 0.35):
+        """Create a basic plot of the compartment model graph using pyplot.
+
+        ### Returns:
+            - fig: matplotlib.figure.Figure. The figure object containing the plot.
+            - ax: matplotlib.axes.Axes. The axes object for the plot.
+        """
+
+        # Construct the graph
+        g = self.construct_graph()
+        # Place the compartments
+        compartments = [comp_name for comp_name in self.compartments]
+        pos = {node: (i, 0) for i, node in enumerate(compartments)}
+        # Create the plot
+        fig, ax = plt.subplots(figsize=(8, 6))  # TODO: figure size based on number of compartments
+        # Draw the compartments and their labels
+        nx.draw_networkx_nodes(
+            g,
+            pos=pos,
+            nodelist=compartments,
+            node_size=node_size,
+            node_shape=node_shape,
+            node_color=node_color,
+            edgecolors=edge_color,
+            linewidths=linewidths
+        )
+        nx.draw_networkx_labels(
+            g,
+            pos=pos,
+            labels={node: node for node in compartments},
+            font_size=font_size
+        )
+        # Update positions to include IN and OUT nodes
+        for i, node in enumerate(compartments):
+            pos[f"{node}_IN"] = (i, 2)
+            pos[f"{node}_OUT"] = (i, -2)
+        # Draw the edges individually
+        for edge in g.edges(data=True):
+            # Determine arrow style based on nature
+            if edge[2]['nature'] == 'unidirectional':
+                arrowstyle = '-|>'
+            elif edge[2]['nature'] == 'bidirectional':
+                arrowstyle = '<|-|>'
+            else:
+                arrowstyle = '-|>'
+            # Determine line style based on nature
+            if edge[2]['nature'] in ['clearance', 'dosage']:
+                style = 'dashed'
+            else:
+                style = 'solid'
+            # Determine if we need curved arrows
+            dist = abs(pos[edge[0]][0] - pos[edge[1]][0])
+            if dist > 1:
+                connection_style = f"arc3,rad={rad}"
+            else:
+                connection_style = "arc3,rad=0.0"
+            nx.draw_networkx_edges(
+                g,
+                pos=pos,
+                edgelist=[edge],
+                width=linewidths,
+                style=style,
+                arrowsize=arrowsize,
+                arrowstyle=arrowstyle,
+                node_size=node_size,
+                connectionstyle=connection_style
+            )
+
+        # Set margins for the axes so that nodes aren't clipped
+        ax = plt.gca()
+        ax.margins(0.1)
+        plt.axis("off")
+        return fig, ax
+    
+    def plot_using_graphviz(self, filename="compartment_model_graphviz"):
+        """
+        Create a basic plot of the compartment model graph using graphviz.
+
+        ### Returns:
+            - fig: matplotlib.figure.Figure. The figure object containing the plot.
+            - ax: matplotlib.axes.Axes. The axes object for the plot.
+        """
+        # Draw a compartment model graph using Graphviz
+        dot = Digraph(comment='Compartment Model')
+        # specify graph attributes
+        dot.attr(rankdir='TB', fixedsize='true', size='11,5', nodesep='1', ranksep='1', fontsize='10', width='0.5', height='0.5')
+        
+        for comp in self.compartments.values():
+            dot.node(comp.id, shape='square', dir='both')
+
+        # Add unidirectional or bidirectional fluxes 
+        for flux in self.fluxes.values():
+            if flux.nature == "bidirectional":
+                dot.edge(flux.source.id, flux.dest.id)
+                dot.edge(flux.dest.id, flux.source.id)
+            else:
+                dot.edge(flux.source.id, flux.dest.id)
+        # Add clearances as edges
+        for clr in self.clearances.values():
+            dot.edge(clr.source.id, 'Clearance')
+        # Add dosages as edges
+        for dsg in self.dosages.values():
+            dot.edge('Dosage', dsg.dest.id)
+        # Have all compartments on the same level
+        with dot.subgraph() as s:
+            s.attr(rank='same')
+            for comp in self.compartments.values():
+                s.node(comp.id, shape='square', dir='both')
+        # Render the graph to a file  
+        dot.render(filename, format='png', cleanup=True)
+        # read the graph for plotting
+        diagram = plt.imread(f"{filename}.png")
+        fig, ax = plt.subplots()
+        ax.imshow(diagram)
+        ax.axis('off')
+        return fig, ax
 
 
-
-  
-
-
-
-
+if __name__ == "__main__":
+    model = CompartmentModel.from_json("pkmodel/config.json")
+    print(model)

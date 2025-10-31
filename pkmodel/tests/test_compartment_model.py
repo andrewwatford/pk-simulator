@@ -2,19 +2,118 @@ import numpy.testing as npt
 import pytest
 import logging
 import pkmodel as pk
-from pkmodel.builtin_fluxes import constant_dose
 import numpy as np
+from pydantic import ValidationError
+from pkmodel.CompartmentModel import Flux, Clearance, Dosage
+
 
 @pytest.fixture()
-def cmodel_1():
+def config_1():
     """
-    Fixture for a simple two-compartment model.
-    No fluxes, clearances, or dosages added.
+    Fixture for a config file.
     """
-    return pk.CompartmentModel(
-        compartment_names=['central', 'peripheral'],
-        compartment_volumes=[22, 7]
-    )
+    config = {
+
+        "compartments": {
+            "central": 22.0,
+            "peripheral": 7.0,
+        },
+
+        "fluxes": {
+            "c_p": {
+                "source": "central",
+                "dest": "peripheral",
+                "rate_constant": 5.0,
+                "nature": "bidirectional",
+                "rate_law": "first"
+            }
+        },
+
+        "clearances": {
+            "central_clearance": {
+                "source": "central",
+                "rate_constant": 5.0,
+                "rate_law": "first"
+            }
+        },
+
+        "dosages": {
+            "central_dosage": {
+                "dest": "central",
+                "regime": "constant",
+                "rate_constant": 1.0,
+            }
+        }
+    }
+
+    return config
+
+
+@pytest.fixture()
+def cmodel_1(config_1):
+    """
+    Fixture for a CompartmentModel instance.
+    """
+    cmodel = pk.CompartmentModel.from_config(config_1)
+    return cmodel
+
+
+@pytest.fixture()
+def comp_1():
+    """
+    Fixture for a Compartment instance
+    """
+    return pk.Compartment(id="central", volume=22.0)
+
+
+@pytest.fixture()
+def comp_2():
+    """
+    Fixture for a second Compartment instance
+    """
+    return pk.Compartment(id="peripheral", volume=7.0)
+
+
+@pytest.fixture()
+def flux_1(comp_1, comp_2):
+    """
+    Fixture for a Flux instance
+    Do not set scope to module, session, or class - because fixture will get modified
+    by several different unit tests
+    """
+    return Flux(id="c_p",
+                   source=comp_1,
+                   dest=comp_2,
+                   rate_constant=5.0,
+                   nature="bidirectional",
+                   rate_law="first")
+
+
+@pytest.fixture()
+def clearance_1(comp_1):
+    """
+    Fixture for a Clearance instance
+    Do not set scope to module, session, or class - because fixture will get modified
+    by several different unit tests
+    """
+    return Clearance(id='central_clearance',
+                        source=comp_1,
+                        rate_constant=5.0,
+                        rate_law="first")
+
+
+@pytest.fixture()
+def dosage_1(comp_1):
+    """
+    Fixture for a Dosage instance
+    Do not set scope to module, session, or class - because fixture will get modified
+    by several different unit tests
+    """
+    return Dosage(id='central_dosage',
+                     dest=comp_1,
+                     regime="constant",
+                     rate_constant=1.0)
+
 
 class TestCompartmentModel:
     """
@@ -24,300 +123,576 @@ class TestCompartmentModel:
         """
         Tests CompartmentModel creation.
         """
-        # Check if attributes are stored correctly in a model object
-        assert cmodel_1.compartment_names == ["central", "peripheral"]
-        assert cmodel_1.compartment_volumes == [22, 7]
+        from collections import OrderedDict
 
-    def test_create_with_invalid_inputs(self):
-        """
-        Tests CompartmentModel creation with mismatched lengths of names and volumes.
-        """
+        assert isinstance(cmodel_1, pk.CompartmentModel)
+        assert cmodel_1.model_built is False
+        assert cmodel_1.model_changed_since_last_build is True
+        assert isinstance(cmodel_1.compartments, OrderedDict)
+        assert isinstance(cmodel_1.fluxes, OrderedDict)
+        assert isinstance(cmodel_1.clearances, OrderedDict)
+        assert isinstance(cmodel_1.dosages, OrderedDict)
+        assert len(cmodel_1.compartments) == 2
+        assert len(cmodel_1.fluxes) == 1
+        assert len(cmodel_1.clearances) == 1
+        assert len(cmodel_1.dosages) == 1
+        # etc. Could do more
 
-        # Test with mismatched lengths of names and volumes
-        with pytest.raises(ValueError):
-            pk.CompartmentModel(
-                compartment_names   = ['central','peripheral'],
-                compartment_volumes = [1,2,3])
-            
-    def test_add_flux_invalid_rate_law(self, cmodel_1):
+    def test_add_compartment(self, cmodel_1):
         """
-        Tests that adding a flux with an invalid rate law raises a NotImplementedError.
+        Check .add_compartment method works correctly
         """
-        
-        # Try to add a flux with an invalid rate law
-        with pytest.raises(NotImplementedError):
-            cmodel_1.add_flux(
-                from_compartment = 'central',
-                to_compartment   = 'peripheral',
-                rate_constant    = 1,
-                rate_law         = 'invalid_rate_law')
-            
-    def test_add_clearance_invalid_rate_law(self, cmodel_1):
-        """
-        Tests that adding a clearance with an invalid rate law raises a NotImplementedError.
-        """     
-        
-        # Try to add a clearance with an invalid rate law
-        with pytest.raises(NotImplementedError):
-            cmodel_1.add_clearance(
-                from_compartment = 'central',
-                rate_constant    = 1,
-                rate_law         = 'invalid_rate_law')
-            
-    def test_add_flux_invalid_nature(self, cmodel_1):
-        """
-        Tests that adding a flux with an invalid nature raises a NotImplementedError.
-        """ 
-        
-        # Try to add a flux with an invalid nature
-        with pytest.raises(NotImplementedError):
-            cmodel_1.add_flux(
-                from_compartment = 'central',
-                to_compartment   = 'peripheral',
-                rate_constant    = 1,
-                rate_law         = 'first',
-                nature           = 'invalid_nature')
+        cmodel_1.model_changed_since_last_build = False
+        cmodel_1.add_compartment(pk.Compartment(
+            id='peripheral 2',
+            volume=30))
+        assert 'peripheral 2' in cmodel_1.compartments.keys()
+        assert cmodel_1.compartments['peripheral 2'].volume == 30
+        assert cmodel_1.model_changed_since_last_build is True
 
     @pytest.mark.parametrize(
-        "compartment_names, compartment_volumes, flux_dict_list, clearance_dict_list, expected_matrix, expected_cst_vector",
+        "rate_law_to_use, nature_to_use",
+        [('first', 'bidirectional'), ('first', 'unidirectional'), ('zero', 'bidirectional')]
+    )
+    def test_add_flux(self, cmodel_1, flux_1, rate_law_to_use, nature_to_use):
+        """
+        Check .add_flux method works correctly
+        """
+        cmodel_1.model_changed_since_last_build = False
+        flux_1.id = 'test_flux'
+        flux_1.rate_law = rate_law_to_use
+        flux_1.nature = nature_to_use
+        cmodel_1.add_flux(flux_1)
+        assert 'test_flux' in cmodel_1.fluxes.keys()
+        assert cmodel_1.fluxes['test_flux'].rate_law == rate_law_to_use
+        assert cmodel_1.fluxes['test_flux'].nature == nature_to_use
+        assert cmodel_1.fluxes['test_flux'].source.id == 'central'
+        assert cmodel_1.fluxes['test_flux'].dest.id == 'peripheral'
+        assert cmodel_1.fluxes['test_flux'].rate_constant == 5
+        assert cmodel_1.model_changed_since_last_build is True
+
+    @pytest.mark.parametrize(
+        "rate_law_to_use",
+        ['first', 'zero']
+    )
+    def test_add_clearance(self, cmodel_1, clearance_1, rate_law_to_use):
+        """
+        Check .add_clearance method works correctly
+        """
+        cmodel_1.model_changed_since_last_build = False
+        clearance_1.id = "test_clearance"
+        clearance_1.rate_law = rate_law_to_use
+        cmodel_1.add_clearance(clearance_1)
+        assert 'test_clearance' in cmodel_1.clearances.keys()
+        assert cmodel_1.clearances['test_clearance'].source == cmodel_1.compartments['central']
+        assert cmodel_1.clearances['test_clearance'].rate_constant == 5
+        assert cmodel_1.clearances['test_clearance'].rate_law == rate_law_to_use
+        assert cmodel_1.model_changed_since_last_build is True
+
+    @pytest.mark.parametrize(
+        "regime_to_use, rate_constant_to_use, dosage_func_to_use",
+        [
+            ('constant', 0, None),
+            ('constant', 10, None),
+            ('custom', 0, lambda x: x**2)
+        ]
+    )
+    def test_add_dosage(self, cmodel_1, dosage_1, regime_to_use, rate_constant_to_use, dosage_func_to_use):
+        """
+        Check .add_dosage method works correctly
+        """
+        cmodel_1.model_changed_since_last_build = False
+        dosage_1.id = 'test_dosage'
+        dosage_1.regime = regime_to_use
+        dosage_1.rate_constant = rate_constant_to_use
+        dosage_1.dosage_func = dosage_func_to_use
+        cmodel_1.add_dosage(dosage_1)
+        assert 'test_dosage' in cmodel_1.dosages.keys()
+        assert cmodel_1.dosages['test_dosage'].dest == cmodel_1.compartments['central']
+        assert cmodel_1.dosages['test_dosage'].regime == regime_to_use
+        assert cmodel_1.dosages['test_dosage'].rate_constant == rate_constant_to_use
+        assert cmodel_1.dosages['test_dosage'].dosage_func == dosage_func_to_use
+        assert cmodel_1.model_changed_since_last_build is True
+
+    def test_add_existing_compartment(self, cmodel_1, comp_1):
+        """
+        Check that we get a KeyError when attempting to add a compartment with the
+        same ID as an existing compartment
+        """
+        with pytest.raises(KeyError):
+            cmodel_1.add_compartment(comp_1)
+
+    def test_add_existing_flux(self, cmodel_1, flux_1):
+        """
+        Check that we get a KeyError when attempting to add a flux with the
+        same ID as an existing flux
+        """
+        with pytest.raises(KeyError):
+            cmodel_1.add_flux(flux_1)
+
+    def test_add_existing_clearance(self, cmodel_1, clearance_1):
+        """
+        Check that we get a KeyError when attempting to add a clearance with the
+        same ID as an existing clearance
+        """
+        with pytest.raises(KeyError):
+            cmodel_1.add_clearance(clearance_1)
+
+    def test_add_existing_dosage(self, cmodel_1, dosage_1):
+        """
+        Check that we get a KeyError when attempting to add a dosage with the
+        same ID as an existing dosage
+        """
+        with pytest.raises(KeyError):
+            cmodel_1.add_dosage(dosage_1)
+
+    @pytest.mark.parametrize(
+        "fixture_name, method_name",
+        [("flux_1", "add_flux"),
+            ("clearance_1", "add_clearance"),
+            ("dosage_1", "add_dosage")]
+    )
+    def test_add_to_nonexistent_compartment(self, cmodel_1, fixture_name, method_name, request):
+        """
+        Check that we get a KeyError when attempting to add a clearance,
+        flux, or dosage involving a non-existing compartment
+        """
+        fixture = request.getfixturevalue(fixture_name)
+        fixture.id = "New id"
+        if method_name == 'add_dosage':
+            fixture.dest = pk.Compartment("Ghost", 1000)
+        else:
+            fixture.source = pk.Compartment("Ghost", 1000)
+        with pytest.raises(KeyError):
+            getattr(cmodel_1, method_name)(fixture)
+
+    def test_add_flux_invalid_rate_law(self, cmodel_1):
+        """
+        Tests that adding a flux with an invalid rate law raises a ValueError.
+        """
+        # Try to add a flux with an invalid rate law
+        with pytest.raises(ValueError):
+            cmodel_1.add_flux(Flux(id='test',
+                                      source=cmodel_1.compartments['central'],
+                                      dest=cmodel_1.compartments['peripheral'],
+                                      rate_constant=1,
+                                      rate_law="invalid",
+                                      nature="unidirectional"))
+
+    def test_add_clearance_invalid_rate_law(self, cmodel_1):
+        """
+        Tests that adding a clearance with an invalid rate law raises a ValueError.
+        """
+        # Try to add a clearance with an invalid rate law
+        with pytest.raises(ValueError):
+            cmodel_1.add_clearance(pk.Clearance(
+                id='test',
+                source=cmodel_1.compartments['central'],
+                rate_constant=3,
+                rate_law='invalid'
+            ))
+
+    def test_add_flux_invalid_nature(self, cmodel_1):
+        """
+        Tests that adding a flux with an invalid nature raises a ValueError.
+        """
+
+        # Try to add a flux with an invalid nature
+        with pytest.raises(ValueError):
+            cmodel_1.add_flux(pk.Flux(id='test',
+                                      source=cmodel_1.compartments['central'],
+                                      dest=cmodel_1.compartments['peripheral'],
+                                      rate_constant=1,
+                                      rate_law="first",
+                                      nature="invalid"))
+
+    def test_add_dosage_invalid_regime(self, cmodel_1):
+        """
+        Tests that adding a dosage with an invalid regime raises a ValueError.
+        """
+
+        with pytest.raises(ValueError):
+            cmodel_1.add_dosage(pk.Dosage(id='test',
+                                          dest=cmodel_1.compartments['central'],
+                                          regime='invalid'))
+
+    def test_unbuilt_model_run(self, cmodel_1):
+        """
+        Tests that running an unbuilt model results in the model being built.
+        """
+        cmodel_1.run(t_span=[0, 30], y0=[0, 0])
+        assert cmodel_1.model_built
+
+    def test_changed_model_run(self, cmodel_1):
+        """
+        Tests that running a changed model results in the model being rebuilt.
+        """
+        cmodel_1.build_linear_rhs()
+        cmodel_1.add_clearance(pk.Clearance(
+            id='peripheral_clearance',
+            source=cmodel_1.compartments['peripheral'],
+            rate_constant=5.0,
+            rate_law='first'))
+        cmodel_1.run(t_span=[0, 30], y0=[0, 0])
+        assert cmodel_1.model_built
+
+    def test_invalid_config(self):
+        """
+        Tests trying to create a model from an invalid config.
+        """
+
+        with pytest.raises(ValidationError):
+            config = {
+                "compartment": {
+                    "central": 22.0,
+                    "peripheral": 7.0,
+                },
+
+                "fluxes": {
+                    "c_p": {
+                        "source": "central",
+                        "dest": "peripheral",
+                        "rate_constant": 5.0,
+                        "nature": "bidirectional",
+                        "rate_law": "first"
+                    }
+                },
+
+                "clearances": None,
+
+                "dosages": {
+                    "central_dosage": {
+                        "dest": "central",
+                        "regime": "constant",
+                        "rate_constant": 1.0,
+                    }
+                }
+            }
+            pk.CompartmentModel.from_config(config)
+
+    @pytest.mark.parametrize(
+        "comp_dict, flux_dict, clearance_dict, expected_matrix, expected_cst_vector",
         [
             # Test case 1: two compartments, one first-order diffusive flux
-            (   
-                ['central', 'peripheral'],
-                [22, 7],
-                [{
-                    'from_compartment': 'central',
-                    'to_compartment': 'peripheral',
-                    'rate_constant': 1,
-                    'rate_law': 'first',
-                    'nature': 'diffusive'}],
-                [],
+            (
+                {
+                    "central": 22.0,
+                    "peripheral": 7.0
+                },
+
+                {
+                    "test_flux": {
+                        "source": "central",
+                        "dest": "peripheral",
+                        "rate_constant": 1.0,
+                        "nature": "bidirectional",
+                        "rate_law": "first"
+                    }
+                },
+                None,
                 [
-                [-1/22, 1/7],
-                [1/22, -1/7]
+                    [-1 / 22, 1 / 7],
+                    [1 / 22, -1 / 7]
                 ],
                 [0, 0]
             ),
             # Test case 2: two compartments, one first-order clearance
-            (   
-                ['central', 'peripheral'],
-                [22, 7],
-                [],
-                [{
-                    'from_compartment': 'central',
-                    'rate_constant': 2,
-                    'rate_law': 'first'
-                }],
+            (
+                {
+                    "central": 22.0,
+                    "peripheral": 7.0
+                },
+                None,
+                {
+                    "central_clearance": {
+                        "source": "central",
+                        "rate_constant": 2.0,
+                        "rate_law": "first"
+                    }
+                },
                 [
-                [-2/22, 0],
-                [0, 0]
+                    [-2 / 22, 0],
+                    [0, 0]
                 ],
                 [0, 0]
             ),
             # Test case 3: two compartments, one first-order one-way flux
-            (   
-                ['central', 'peripheral'],
-                [22, 7],
-                [{
-                    'from_compartment': 'central',
-                    'to_compartment': 'peripheral',
-                    'rate_constant': 1,
-                    'rate_law': 'first',
-                    'nature': 'one-way'}],
-                [],
+            (
+                {
+                    "central": 22.0,
+                    "peripheral": 7.0
+                },
+                {
+                    "test_flux": {
+                        "source": "central",
+                        "dest": "peripheral",
+                        "rate_constant": 1.0,
+                        "nature": "unidirectional",
+                        "rate_law": "first"
+                    }
+                },
+                None,
                 [
-                [-1/22, 0],
-                [1/22, 0]
+                    [-1 / 22, 0],
+                    [1 / 22, 0]
                 ],
                 [0, 0]
             ),
             # Test case 4: two compartments, one zero-order flux
-            (   
-                ['central', 'peripheral'],
-                [22, 7],
-                [{
-                    'from_compartment': 'central',
-                    'to_compartment': 'peripheral',
-                    'rate_constant': 1,
-                    'rate_law': 'zero'}],
-                [],
+            (
+                {
+                    "central": 22.0,
+                    "peripheral": 7.0
+                },
+                {
+                    "test_flux": {
+                        "source": "central",
+                        "dest": "peripheral",
+                        "rate_constant": 1.0,
+                        "nature": "unidirectional",
+                        "rate_law": "zero"
+                    }
+                },
+                None,
                 [
-                [0, 0],
-                [0, 0]
+                    [0, 0],
+                    [0, 0]
                 ],
                 [-1, 1]
             ),
             # Test case 5: two compartments, one zero-order clearance
-            (   
-                ['central', 'peripheral'],
-                [22, 7],
-                [],
-                [{
-                    'from_compartment': 'central',
-                    'rate_constant': 2,
-                    'rate_law': 'zero'
-                }],
+            (
+                {
+                    "central": 22.0,
+                    "peripheral": 7.0
+                },
+                None,
+                {
+                    "central_clearance": {
+                        "source": "central",
+                        "rate_constant": 2.0,
+                        "rate_law": "zero"
+                    }
+                },
                 [
-                [0, 0],
-                [0, 0]
+                    [0, 0],
+                    [0, 0]
                 ],
                 [-2, 0]
             ),
             # Test case 6: intravenous bolus model in instructions (dose = 0)
             # Has one first-order diffusive flux between central and peripheral compartments
             # And one first-order clearance from central compartment
-            (   
-                ['central', 'peripheral'],
-                [22, 7],
-                [{
-                    'from_compartment': 'central',
-                    'to_compartment': 'peripheral',
-                    'rate_constant': 3,
-                    'rate_law': 'first',
-                    'nature': 'diffusive'
-                }],
-                [{
-                    'from_compartment': 'central',
-                    'rate_constant': 5,
-                    'rate_law': 'first'
-                }],
+            (
+                {
+                    "central": 22.0,
+                    "peripheral": 7.0
+                },
+                {
+                    "test_flux": {
+                        "source": "central",
+                        "dest": "peripheral",
+                        "rate_constant": 3.0,
+                        "nature": "bidirectional",
+                        "rate_law": "first"
+                    }
+                },
+                {
+                    "central_clearance": {
+                        "source": "central",
+                        "rate_constant": 5.0,
+                        "rate_law": "first"
+                    }
+                },
                 [
-                [-8/22, 3/7],
-                [3/22, -3/7]
+                    [-8 / 22, 3 / 7],
+                    [3 / 22, -3 / 7]
                 ],
                 [0, 0]
             ),
             # Test case 7: subcutaneous dosing model in instructions. Dosage = 0
-            (   
-                ['absorber','central', 'peripheral'],
-                [5, 22, 7],
-                [{
-                    'from_compartment': 'absorber',
-                    'to_compartment': 'central',
-                    'rate_constant': 1,
-                    'rate_law': 'first',
-                    'nature': 'one-way'
-                }, 
+            (
                 {
-                    'from_compartment': 'central',
-                    'to_compartment': 'peripheral',
-                    'rate_constant': 5,
-                    'rate_law': 'first',
-                    'nature': 'diffusive'
-                }],
-                [{
-                    'from_compartment': 'central',
-                    'rate_constant': 3,
-                    'rate_law': 'first'
-                }],
+                    "absorber": 5.0,
+                    "central": 22.0,
+                    "peripheral": 7.0
+                },
+
+                {
+                    "c_p": {
+                        "source": "central",
+                        "dest": "peripheral",
+                        "rate_constant": 5.0,
+                        "nature": "bidirectional",
+                        "rate_law": "first"
+                    },
+                    "a_c": {
+                        "source": "absorber",
+                        "dest": "central",
+                        "rate_constant": 1.0,
+                        "nature": "unidirectional",
+                        "rate_law": "first"
+                    }
+                },
+
+                {
+                    "central_clearance": {
+                        "source": "central",
+                        "rate_constant": 3.0,
+                        "rate_law": "first"
+                    }
+                },
                 [
-                [-1/5, 0, 0],
-                [1/5, -8/22, 5/7], 
-                [0, 5/22, -5/7]
+                    [-1 / 5, 0, 0],
+                    [1 / 5, -8 / 22, 5 / 7],
+                    [0, 5 / 22, -5 / 7]
                 ],
                 [0, 0, 0]
             ),
             # Test case 8: no fluxes or clearances
-            (   
-                ['absorber','central', 'peripheral'],
-                [5, 22, 7],
-                [],
-                [],
+            (
+                {
+                    "absorber": 5.0,
+                    "central": 22.0,
+                    "peripheral": 7.0
+
+                },
+                None,
+                None,
                 [
-                [0, 0, 0],
-                [0, 0, 0], 
-                [0, 0, 0]
+                    [0, 0, 0],
+                    [0, 0, 0],
+                    [0, 0, 0]
                 ],
                 [0, 0, 0]
             ),
         ]
     )
-    def test_matrix_and_constant_vector(self, compartment_names, compartment_volumes, flux_dict_list, clearance_dict_list, expected_matrix, expected_cst_vector):
+    def test_matrix_and_constant_vector(self, comp_dict, flux_dict, clearance_dict, expected_matrix, expected_cst_vector):
         """
         Tests that the RHS matrix and constant vector are correctly constructed
         after various combinations of zero- or first-order fluxes and clearances are added
-        """      
+        """
 
-        # Initialise compartment model
-        model = pk.CompartmentModel(
-            compartment_names   = compartment_names,
-            compartment_volumes = compartment_volumes)
+        config = {
+            "compartments": comp_dict,
+            "fluxes": flux_dict,
+            "clearances": clearance_dict,
+            "dosages": None
+        }
 
-        # Add fluxes
-        for flux_dict in flux_dict_list:
-            model.add_flux(**flux_dict)
-        
-        # Add clearances
-        for clearance_dict in clearance_dict_list:
-            model.add_clearance(**clearance_dict)
+        model = pk.CompartmentModel.from_config(config)
+        model.build_linear_rhs()
 
-        npt.assert_array_almost_equal(model.rhs_matrix, expected_matrix)
-        npt.assert_array_almost_equal(model.rhs_cst_vector, expected_cst_vector)
+        npt.assert_array_almost_equal(model.A, expected_matrix)
+        npt.assert_array_almost_equal(model.b, expected_cst_vector)
 
     @pytest.mark.parametrize(
-    "name, flux_kwargs, clearance_kwargs, dose, y_init, expected" ,
+        "name, flux_dict, clearance_dict, dose, y_init, expected",
         [
             (
-                    "first_order_flux_clearance_dose",
+                "first_order_flux_clearance_dose",
                 {
-                    "from_compartment": "central",
-                    "to_compartment": "peripheral",
-                    "rate_constant": 5, 
-                    "rate_law": "first"
+                    "test_flux": {
+                        "source": "central",
+                        "dest": "peripheral",
+                        "rate_constant": 5.0,
+                        "nature": "bidirectional",
+                        "rate_law": "first"
+                    }
                 },
                 {
-                    "from_compartment": "central",
-                    "rate_constant": 5,
-                    "rate_law": "first"
+                    "central_clearance": {
+                        "source": "central",
+                        "rate_constant": 5.0,
+                        "rate_law": "first"
+                    }
                 },
-                1,  # Dose into the central compartment                    
+                1,  # Dose into the central compartment
                 np.array([22.0, 7.0]),
                 np.array([-4.0, 0.0])
             ),
 
             (
-                    "first_order_flux_dose",
+                "first_order_flux_dose",
                 {
-                    "from_compartment": "central",
-                    "to_compartment": "peripheral",
-                    "rate_constant": 5, 
-                    "rate_law": "first"
+                    "test_flux": {
+                        "source": "central",
+                        "dest": "peripheral",
+                        "rate_constant": 5.0,
+                        "nature": "bidirectional",
+                        "rate_law": "first"
+                    }
                 },
                 None,
-                1,  # Dose into the central compartment                    
+                1,  # Dose into the central compartment
                 np.array([22.0, 7.0]),
                 np.array([1.0, 0.0])
             ),
         ]
     )
-
-    def test_build_parametrized(self, name, flux_kwargs, clearance_kwargs, dose, y_init, expected):
+    def test_build_parametrized(self, name, flux_dict, clearance_dict, dose, y_init, expected):
         logging.info(f"Testing the model {name}")
-        model = pk.CompartmentModel(
-            compartment_names   = ["central", "peripheral"],
-            compartment_volumes = [22,7]
-        )
+        config = {
+            "compartments": {
+                "central": 22.0,
+                "peripheral": 7.0,
+            },
+            "fluxes": flux_dict,
+            "clearances": clearance_dict,
+            "dosages": {
+                "central_dosage": {
+                    "dest": "central",
+                    "regime": "constant",
+                    "rate_constant": dose,
+                }
+            }
+        }
 
-        # Add optional flux
-        if flux_kwargs is not None:
-            model.add_flux(**flux_kwargs)
-
-        # Add optional clearance
-        if clearance_kwargs is not None:
-            model.add_clearance(**clearance_kwargs)
-
-        # Add dosage to central
-        model.add_dosage(compartment_name="central", dosage_func=constant_dose(dose))
+        model = pk.CompartmentModel.from_config(config)
 
         # Build the model
-        model.build()
+        model.build_linear_rhs()
 
-        assert model.model_built == True
-        assert model.model_changed_since_last_build == False
+        assert model.model_built is True
+        assert model.model_changed_since_last_build is False
 
         # Testing if the RHS works with some sample numbers
         result = model.rhs(5, np.array(y_init))
         assert result == pytest.approx(np.asarray(expected), abs=1e-8)
 
-        
-    
+    def test_create_compartment_no_id(self):
+        """
+        Tests that creating a compartment without an ID creates an ID.
+        """
+        cpt = pk.Compartment(volume=10.0)
+        assert cpt.id is not None
+
+    def test_create_flux_no_id(self):
+        """
+        Tests that creating a flux without an ID creates an ID.
+        """
+        flux = pk.Flux(source=pk.Compartment(volume=10.0),
+                       dest=pk.Compartment(volume=5.0),
+                       rate_constant=5.0,
+                       nature="bidirectional",
+                       rate_law="first")
+        assert flux.id is not None
+
+    def test_create_clearance_no_id(self):
+        """
+        Tests that creating a clearance without an ID creates an ID.
+        """
+        clearance = pk.Clearance(source=pk.Compartment(volume=10.0),
+                                 rate_constant=5.0,
+                                 rate_law="first")
+        assert clearance.id is not None
+
+    def test_create_dosage_no_id(self):
+        """
+        Tests that creating a dosage without an ID creates an ID.
+        """
+        dosage = pk.Dosage(dest=pk.Compartment(volume=10.0),
+                           regime="constant",
+                           rate_constant=1.0)
+        assert dosage.id is not None

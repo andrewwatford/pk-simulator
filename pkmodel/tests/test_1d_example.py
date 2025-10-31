@@ -5,6 +5,7 @@ import numpy as np
 from scipy.integrate import quad
 import pytest
 
+
 @pytest.mark.parametrize(
     "r_C, ic, dosage_func",
     [
@@ -22,22 +23,25 @@ class Test1dExamples:
         """
         Tests a model with one compartment and first-order clearance.
         """
-        # Create a one-compartment model
-        model = pk.CompartmentModel(
-            compartment_names   = ['central'],
-            compartment_volumes = [1])  # Volume
-        
-        # Add a constant dose flux into the central compartment
-        model.add_dosage(
-            compartment_name   = 'central',
-            dosage_func        = dosage_func)
-        
-        # Add a first-order elimination clearance from the central compartment
-        model.add_clearance(
-            from_compartment = 'central',
-            rate_constant    = r_C,  # Clearance rate
-            rate_law         = 'first')
-        
+        # Create the compartment, clearance, and dosage
+        central = pk.Compartment(id='central', volume=1)
+        clearance = pk.Clearance(
+            id='cl',
+            source=central,
+            rate_constant=r_C,
+            rate_law='first')
+        dosage = pk.Dosage(
+            id='dose',
+            dest=central,
+            regime='custom',
+            dosage_func=dosage_func)
+        # Create the model and add components
+        model = pk.CompartmentModel()
+        model.add_compartment(central)
+        model.add_clearance(clearance)
+        model.add_dosage(dosage)
+        # Built
+        model.build_linear_rhs()
         # Simulate the model
         t_span = [0, 10]
         y0 = [ic]
@@ -49,9 +53,9 @@ class Test1dExamples:
             integral, _ = quad(lambda s: np.exp(r_C * s) * dosage_func(s), 0, t)
             return np.exp(- r_C * t) * (ic + integral)
         expected = [sol_func(t) for t in time_points]
-        
+
         # Extract mass in the central compartment as array
         central_mass = results['central'].data
-        
+
         # Check that the simulated results match the expected results, to 2 decimal places (any more and numerical errors creep in)
-        npt.assert_allclose(central_mass, expected, rtol = 1e-2)
+        npt.assert_allclose(central_mass, expected, rtol=1e-2)

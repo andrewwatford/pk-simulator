@@ -39,19 +39,19 @@ setup(
     # Version
     version=get_version(),
 
-    description='An example Python project.',
+    description='pkmodel is a library for creating, solving, and visualising pharmacokinetic (PK) models. It allows the user to represent an organism as a set of interacting compartments and simulate the movement of substances between them over time. ',
 
     long_description=get_readme(),
 
     license='MIT license',
 
-    author=['Andrew Watford', 'Salma Amin', 'Stas Kurass', 'Ambre Brabant'],
+    author='Andrew Watford, Salma Amin, Stas Kurass, Ambre Brabant',
 
-    author_email=['andrew.watford@dtc.ox.ac.uk', 'salma.amin@dtc.ox.ac.uk', 'stanislavs.kurass@dtc.ox.ac.uk', 'ambre.brabant@dtc.ox.ac.uk'],
+    author_email='andrew.watford@dtc.ox.ac.uk, salma.amin@dtc.ox.ac.uk, stanislavs.kurass@dtc.ox.ac.uk, ambre.brabant@dtc.ox.ac.uk',
 
-    maintainer=['Andrew Watford', 'Salma Amin', 'Stas Kurass', 'Ambre Brabant'],
+    maintainer='Andrew Watford, Salma Amin, Stas Kurass, Ambre Brabant',
 
-    maintainer_email='andrew.watford@dtc.ox.ac.uk',
+    maintainer_email='andrew.watford@dtc.ox.ac.uk, salma.amin@dtc.ox.ac.uk, stanislavs.kurass@dtc.ox.ac.uk, ambre.brabant@dtc.ox.ac.uk',
 
     url='https://github.com/andrewwatford/pk-simulator',
 
@@ -64,7 +64,10 @@ setup(
         'numpy',
         'matplotlib',
         'scipy',
-        'xarray'
+        'xarray',
+        'pydantic',
+        "networkx",
+        "graphviz"
     ],
     extras_require={
         'docs': [

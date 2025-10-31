@@ -6,6 +6,7 @@ from scipy.linalg import expm
 from scipy.integrate import quad_vec
 import pytest
 
+
 @pytest.mark.parametrize(
     "k, r1, r2, ic, d1, d2",
     [
@@ -22,39 +23,52 @@ class Test2dExamples:
         """
         Tests a model with two compartments, each with first-order clearance.
         """
-        # Create a two-compartment model
-        model = pk.CompartmentModel(
-            compartment_names   = ['c1', 'c2'],
-            compartment_volumes = [1, 1])  # Volume
-        
-        # Add the flux between compartments
-        model.add_flux(
-            from_compartment = 'c1',
-            to_compartment   = 'c2',
-            rate_constant    = k,
-            rate_law         = 'first'
-        )
+        # Create the compartments
+        c1 = pk.Compartment(id='c1', volume=1)
+        c2 = pk.Compartment(id='c2', volume=1)
+        # Create the flux between compartments
+        flux = pk.Flux(id='flux',
+                       source=c1,
+                       dest=c2,
+                       rate_constant=k,
+                       rate_law='first',
+                       nature='bidirectional')
+        # Create the two clearances
+        clearance1 = pk.Clearance(
+            id='cl1',
+            source=c1,
+            rate_constant=r1,
+            rate_law='first')
+        clearance2 = pk.Clearance(
+            id='cl2',
+            source=c2,
+            rate_constant=r2,
+            rate_law='first')
+        # Create the two dosages
+        dosage1 = pk.Dosage(
+            id='dose1',
+            dest=c1,
+            regime='custom',
+            dosage_func=d1)
+        dosage2 = pk.Dosage(
+            id='dose2',
+            dest=c2,
+            regime='custom',
+            dosage_func=d2)
 
-        # Add the two clearances
-        model.add_clearance(
-            from_compartment = 'c1',
-            rate_constant    = r1,
-            rate_law         = 'first'
-        )
-        model.add_clearance(
-            from_compartment = 'c2',
-            rate_constant    = r2,
-            rate_law         = 'first'
-        )
+        # Create the model and add components
+        model = pk.CompartmentModel()
+        model.add_compartment(c1)
+        model.add_compartment(c2)
+        model.add_dosage(dosage1)
+        model.add_dosage(dosage2)
+        model.add_clearance(clearance1)
+        model.add_clearance(clearance2)
+        model.add_flux(flux)
 
-        # Add the two dosages
-        model.add_dosage(
-            compartment_name   = 'c1',
-            dosage_func        = d1)
-        model.add_dosage(
-            compartment_name   = 'c2',
-            dosage_func        = d2)
-        
+        # Built
+        model.build_linear_rhs()
+
         # Simulate the model
         t_span = [0, 10]
         results = model.run(t_span, ic)
@@ -69,11 +83,11 @@ class Test2dExamples:
             integral, _ = quad_vec(lambda s: mexp_func(-s) @ dosage_func(s), 0, t)
             return mexp_func(t) @ (ic + integral)
         expected = np.array([sol_func(t) for t in time_points])
-        
+
         # Extract mass in the two compartment as array
         c1_mass = results['c1'].data
         c2_mass = results['c2'].data
-        
+
         # Check that the simulated results match the expected results, to 2 decimal places (any more and numerical errors creep in)
-        npt.assert_allclose(c1_mass, expected[:,0], rtol = 1e-2)
-        npt.assert_allclose(c2_mass, expected[:,1], rtol = 1e-2)
+        npt.assert_allclose(c1_mass, expected[:, 0], rtol=1e-2)
+        npt.assert_allclose(c2_mass, expected[:, 1], rtol=1e-2)
