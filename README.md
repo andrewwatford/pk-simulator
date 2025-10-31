@@ -32,12 +32,16 @@ It allows users to represent an organism as a set of interacting compartments an
 
 ## Installation
 ### via pip
-     pip install pkmodel
+```bash
+pip install pkmodel
+```
 
 ### via source
-     git clone https://github.com/andrewwatford/pk-simulator.git
-     cd pk-simulator
-     pip install -e
+```bash
+git clone https://github.com/andrewwatford/pk-simulator.git
+cd pk-simulator
+pip install -e
+```
 
 ## Usage
 

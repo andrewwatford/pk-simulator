@@ -40,10 +40,10 @@ setup(
     version=get_version(),
 
     description='pkmodel is a library for creating, solving, and visualising pharmacokinetic (PK) models. It allows the user to represent an organism as a set of interacting compartments and simulate the movement of substances between them over time. ',
-
-    long_description=get_readme(),
     long_description_content_type='text/markdown',
 
+    long_description=get_readme(),
+    
     license='MIT license',
 
     author='Andrew Watford, Salma Amin, Stas Kurass, Ambre Brabant',
