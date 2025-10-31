@@ -35,3 +35,6 @@ ignore=
     # This is not super useful
     E501,
 
+    # Whitespace complaints
+    W291,
+    W293,
