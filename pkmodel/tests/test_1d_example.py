@@ -5,6 +5,7 @@ import numpy as np
 from scipy.integrate import quad
 import pytest
 
+
 @pytest.mark.parametrize(
     "r_C, ic, dosage_func",
     [
@@ -52,9 +53,9 @@ class Test1dExamples:
             integral, _ = quad(lambda s: np.exp(r_C * s) * dosage_func(s), 0, t)
             return np.exp(- r_C * t) * (ic + integral)
         expected = [sol_func(t) for t in time_points]
-        
+
         # Extract mass in the central compartment as array
         central_mass = results['central'].data
-        
+
         # Check that the simulated results match the expected results, to 2 decimal places (any more and numerical errors creep in)
-        npt.assert_allclose(central_mass, expected, rtol = 1e-2)
+        npt.assert_allclose(central_mass, expected, rtol=1e-2)

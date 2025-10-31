@@ -31,3 +31,7 @@ ignore=
     # This is now advised in pep8
     W503,
 
+    # Line is too long
+    # This is not super useful
+    E501,
+

@@ -39,7 +39,7 @@ setup(
     # Version
     version=get_version(),
 
-    description='An example Python project.',
+    description='pkmodel is a library for creating, solving, and visualising pharmacokinetic (PK) models. It allows the user to represent an organism as a set of interacting compartments and simulate the movement of substances between them over time. ',
 
     long_description=get_readme(),
 
@@ -65,7 +65,8 @@ setup(
         'matplotlib',
         'scipy',
         'xarray',
-        'pydantic'
+        'pydantic',
+        "networkx",
     ],
     extras_require={
         'docs': [

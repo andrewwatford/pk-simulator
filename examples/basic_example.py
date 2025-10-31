@@ -11,26 +11,26 @@ config = {
 
     "fluxes": {
         "c_p": {
-            "source":"central",
+            "source": "central",
             "dest": "peripheral",
             "rate_constant": 5.0,
-            "nature":"bidirectional",
-            "rate_law":"first"
+            "nature": "bidirectional",
+            "rate_law": "first"
         }
     },
 
     "clearances": {
-        "central_clearance":{
-            "source":"central",
+        "central_clearance": {
+            "source": "central",
             "rate_constant": 5.0,
-            "rate_law":"first"
+            "rate_law": "first"
         }
     },
 
     "dosages": {
-        "central_dosage":{
-            "dest":"central",
-            "regime":"constant",
+        "central_dosage": {
+            "dest": "central",
+            "regime": "constant",
             "rate_constant": 1.0,
         }
     }
@@ -48,3 +48,5 @@ result = model.run(t_span, y0)
 # Plots
 fig, axs = model.plot_all(result)
 plt.savefig('./example.png')
+fig, axs = model.draw_basic_graph_pyplot()
+plt.savefig('./example_graph.png')
