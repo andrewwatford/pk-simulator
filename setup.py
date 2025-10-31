@@ -67,6 +67,7 @@ setup(
         'xarray',
         'pydantic',
         "networkx",
+        "graphviz"
     ],
     extras_require={
         'docs': [
