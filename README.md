@@ -1,5 +1,5 @@
 ![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)
-![Build](https://img.shields.io/github/actions/workflow/status/yourusername/pk-simulator/tests.yml)
+![Build](https://img.shields.io/github/actions/workflow/status/andrewwatford/pk-simulator/.github/workflows/CI_workflow.yml)
 ![Python](https://img.shields.io/badge/python-3.10%2B-blue)
 # pkmodel: Pharmacokinetic Modelling Library
 
@@ -138,6 +138,22 @@ With the following dosages(if any):
 And the following clearances (if any):
         Clearance 'central_clearance' (first-order, with a rate constant of 5.0), representing elimination from the compartment 'central'.
 ```
+### Printing the system of ODEs associated with the model
+Calling the following method writes the system of linear ordinary differential describing the model dynamics to a .md file:
+```python
+model.generate_markdown("filename")
+```
+An example output looks like this:
+
+$$
+\frac{d q_{0}}{d t} = D_{0}(t)- C_{0}\frac{q_{0}}{V_{0}}- k_{0,1}\left(\frac{q_{0}}{V_{0}} - \frac{q_{1}}{V_{1}}\right)
+$$
+$$
+\frac{d q_{1}}{d t} = - k_{0,1}\left(\frac{q_{1}}{V_{1}} - \frac{q_{0}}{V_{0}}\right)
+$$
+
+The .md file also contains a table relating numerical indices to compartment names, and a table defining each variable.
+
 ### Printing out model graphically
 We also have rudimentary support for printing out a graphical representation of the model in two different ways (pyplot and graphviz).
 #### Via Pyplot
