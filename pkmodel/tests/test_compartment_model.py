@@ -300,12 +300,12 @@ class TestCompartmentModel:
         # Try to add a flux with an invalid nature
         with pytest.raises(ValueError):
             cmodel_1.add_flux(pk.Flux(id='test',
-                            source = cmodel_1.compartments['central'],
-                            dest = cmodel_1.compartments['peripheral'],
-                            rate_constant = 1,
-                            rate_law = "first",
-                            nature = "invalid"))
-            
+                                      source=cmodel_1.compartments['central'],
+                                      dest=cmodel_1.compartments['peripheral'],
+                                      rate_constant=1,
+                                      rate_law="first",
+                                      nature="invalid"))
+
     def test_add_dosage_invalid_regime(self, cmodel_1):
         """
         Tests that adding a dosage with an invalid regime raises a ValueError.
@@ -315,12 +315,12 @@ class TestCompartmentModel:
             cmodel_1.add_dosage(pk.Dosage(id='test',
                                           dest=cmodel_1.compartments['central'],
                                           regime='invalid'))
-            
+
     def test_unbuilt_model_run(self, cmodel_1):
         """
         Tests that running an unbuilt model results in the model being built.
         """
-        cmodel_1.run(t_span = [0, 30], y0 = [0, 0])
+        cmodel_1.run(t_span=[0, 30], y0=[0, 0])
         assert cmodel_1.model_built
 
     def test_changed_model_run(self, cmodel_1):
@@ -329,14 +329,13 @@ class TestCompartmentModel:
         """
         cmodel_1.build_linear_rhs()
         cmodel_1.add_clearance(pk.Clearance(
-            id = 'peripheral_clearance', 
-            source = cmodel_1.compartments['peripheral'],
-            rate_constant = 5.0,
-            rate_law = 'first'
-            ))
-        cmodel_1.run(t_span = [0, 30], y0 = [0, 0])
+            id='peripheral_clearance',
+            source=cmodel_1.compartments['peripheral'],
+            rate_constant=5.0,
+            rate_law='first'))
+        cmodel_1.run(t_span=[0, 30], y0=[0, 0])
         assert cmodel_1.model_built
-            
+
     def test_invalid_config(self):
         """
         Tests trying to create a model from an invalid config.
@@ -362,9 +361,9 @@ class TestCompartmentModel:
                 "clearances": None,
 
                 "dosages": {
-                    "central_dosage":{
-                        "dest":"central",
-                        "regime":"constant",
+                    "central_dosage": {
+                        "dest": "central",
+                        "regime": "constant",
                         "rate_constant": 1.0,
                     }
                 }
@@ -661,3 +660,39 @@ class TestCompartmentModel:
         # Testing if the RHS works with some sample numbers
         result = model.rhs(5, np.array(y_init))
         assert result == pytest.approx(np.asarray(expected), abs=1e-8)
+
+    def test_create_compartment_no_id(self):
+        """
+        Tests that creating a compartment without an ID creates an ID.
+        """
+        cpt = pk.Compartment(volume=10.0)
+        assert cpt.id is not None
+
+    def test_create_flux_no_id(self):
+        """
+        Tests that creating a flux without an ID creates an ID.
+        """
+        flux = pk.Flux(source=pk.Compartment(volume=10.0),
+                       dest=pk.Compartment(volume=5.0),
+                       rate_constant=5.0,
+                       nature="bidirectional",
+                       rate_law="first")
+        assert flux.id is not None
+
+    def test_create_clearance_no_id(self):
+        """
+        Tests that creating a clearance without an ID creates an ID.
+        """
+        clearance = pk.Clearance(source=pk.Compartment(volume=10.0),
+                                 rate_constant=5.0,
+                                 rate_law="first")
+        assert clearance.id is not None
+
+    def test_create_dosage_no_id(self):
+        """
+        Tests that creating a dosage without an ID creates an ID.
+        """
+        dosage = pk.Dosage(dest=pk.Compartment(volume=10.0),
+                           regime="constant",
+                           rate_constant=1.0)
+        assert dosage.id is not None

@@ -8,6 +8,7 @@ import itertools
 # Maths + plotting
 from scipy.integrate import solve_ivp
 import matplotlib.pyplot as plt
+import networkx as nx
 import numpy as np
 import xarray as xr
 
@@ -272,14 +273,17 @@ And the following clearances (if any):\n\t{"\n\t".join(clr_info)}
                 )
 
         return model
+        
+    def build_numeric_index(self):
+        self.comp_index = {comp.id: i for i, comp in enumerate(self.compartments.values())} # TODO: this may be moved to a separate method in the future
 
     def build_linear_rhs(self):
         n = len(self.compartments)
         A = np.zeros((n, n), dtype=float)  # RHS coefficient matrix
         b = np.zeros(n, dtype=float)  # Constant vector for RHS
 
-        # Build a numeric index of compartments
-        self.comp_index = {comp.id: i for i, comp in enumerate(self.compartments.values())}
+        # Build numeric index of compartments
+        self.build_numeric_index()
 
         # Fluxes
         for flux in self.fluxes.values():
@@ -385,6 +389,197 @@ And the following clearances (if any):\n\t{"\n\t".join(clr_info)}
         axs[-1].set_xlabel('$t$')
         axs[0].set_title('Compartment masses over time')
         return fig, axs
+    
+    def generate_markdown(self, filename):
+        """
+        Generate a .md file to display the system of ODEs
+        """
+
+        # Build numeric index of compartments
+        self.build_numeric_index()
+
+        equations = {}
+
+        for i, comp_id in enumerate(self.compartments.keys()):
+            eq_terms = []
+            # Dosages
+            for dsg in self.dosages.values():
+                if dsg.dest.id == comp_id:
+                    if (dsg.regime == 'constant') and (dsg.rate_constant == 0):
+                        continue
+                    elif dsg.regime == 'constant':
+                        eq_terms.append(f"D_{{{i}}}")
+                    else:
+                        eq_terms.append(f"D_{{{i}}}(t)")
+            # Clearances
+            for clr in self.clearances.values():
+                if clr.rate_constant != 0:
+                    if clr.source.id == comp_id:
+                        if clr.rate_law == 'first':
+                            eq_terms.append(f"- C_{{{i}}}\\frac{{q_{{{i}}}}}{{V_{{{i}}}}}")
+                        elif clr.rate_law == 'zero':
+                            eq_terms.append(f"- C_{{{i}}}")
+            # Fluxes
+            for flux in self.fluxes.values():
+                if flux.rate_constant != 0:
+                    src_idx = self.comp_index[flux.source.id]
+                    dst_idx = self.comp_index[flux.dest.id]
+                    kstring = f"k_{{{src_idx},{dst_idx}}}"
+                    if flux.rate_law == 'zero':
+                        if flux.source.id == comp_id:
+                            eq_terms.append(f"- {kstring}")
+                        elif flux.dest.id == comp_id:
+                            eq_terms.append(f"+ {kstring}")
+                    elif flux.rate_law == 'first':
+                        if flux.nature == 'unidirectional':
+                            if flux.source.id == comp_id:
+                                eq_terms.append(f"- {kstring}\\frac{{q_{{{src_idx}}}}}{{V_{{{src_idx}}}}}")
+                            elif flux.dest.id == comp_id:
+                                eq_terms.append(f"+ {kstring}\\frac{{q_{{{src_idx}}}}}{{V_{{{src_idx}}}}}")
+                        elif (flux.nature == 'bidirectional'):
+                            if flux.source.id == comp_id:
+                                eq_terms.append(f"- {kstring}\\left(\\frac{{q_{{{src_idx}}}}}{{V_{{{src_idx}}}}} - \\frac{{q_{{{dst_idx}}}}}{{V_{{{dst_idx}}}}}\\right)")
+                            if flux.dest.id == comp_id:
+                                eq_terms.append(f"- {kstring}\\left(\\frac{{q_{{{dst_idx}}}}}{{V_{{{dst_idx}}}}} - \\frac{{q_{{{src_idx}}}}}{{V_{{{src_idx}}}}}\\right)")
+
+            if len(eq_terms) == 0:
+                equation = "0"
+            else:
+                equation = "".join(eq_terms)
+            equations[comp_id] = f"\\frac{{d q_{{{i}}}}}{{d t}} = {equation}"
+
+        with open(f"{filename}.md", "w", encoding="utf-8") as f:
+            # Write equations
+            f.write("### Equations\n---\n")
+            for eq in equations.values():
+                f.write(f"\n\n$$\n{eq}\n$$\n\n")
+            # Write table
+            f.write("### Compartments\n---\n")
+            f.write("\n\n| Index | Compartment |\n")
+            f.write("|-------|-------------|\n")
+            for i, comp_id in enumerate(self.compartments.keys()):
+                f.write(f"| {i}     | {comp_id}     |\n")
+            # Define some variables
+            f.write("### Variable definitions\n---\n")
+            f.write("\n\n| Symbol | Quantity |\n")
+            f.write("|-------|-------------|\n")
+            f.write("| $t$ | Time |\n")
+            f.write("| $q_i$ | Mass of drug in compartment i |\n")
+            f.write("| $V_i$ | Volume of compartment i |\n")
+            if len(self.dosages) > 0:
+                f.write("| $D_i$ | Dosage into compartment i |\n")
+            if len(self.clearances) > 0:
+                f.write("| $C_i$ | Clearance rate from compartment i |\n")
+            if len(self.fluxes) > 0:
+                f.write("| $k_{i,j}$ | Rate constant for flux between compartments i and j |\n")
+
+
+    def construct_graph(self):
+        """Construct a NetworkX graph representation of the compartment model.
+
+        ### Returns:
+            - g: networkx.MultiDiGraph. A directed multigraph representing the compartment model.
+        """
+        # Create the empty directed multigraph
+        g = nx.MultiDiGraph()
+        # Add compartments as nodes, as well as a generic IN and OUT node for each
+        for comp_name, comp in self.compartments.items():
+            g.add_node(comp_name, subset="compartment", **comp.__dict__)
+            g.add_node(f"{comp_name}_IN", subset="in", shape="point")
+            g.add_node(f"{comp_name}_OUT", subset="out", shape="point")
+        # Add fluxes as edges
+        for flux_name, flux in self.fluxes.items():
+            g.add_edge(flux.source.id, flux.dest.id, key=flux_name, **flux.__dict__)
+        # Add clearances as edges
+        for clear_name, clear in self.clearances.items():
+            g.add_edge(clear.source.id, f"{clear.source.id}_OUT", key=clear_name, nature="clearance", **clear.__dict__)
+        # Add dosages as edges
+        for dose_name, dose in self.dosages.items():
+            g.add_edge(f"{dose.dest.id}_IN", dose.dest.id, key=dose_name, nature="dosage", **dose.__dict__)
+        return g
+
+    def draw_basic_graph_pyplot(
+            self,
+            node_shape: str = "o",
+            node_size: int = 4000,
+            font_size: int = 11,
+            node_color: str = "white",
+            edge_color: str = "black",
+            linewidths: int = 2,
+            arrowsize: int = 20,
+            rad: float = 0.35):
+        """Create a basic plot of the compartment model graph.
+
+        ### Returns:
+            - fig: matplotlib.figure.Figure. The figure object containing the plot.
+            - ax: matplotlib.axes.Axes. The axes object for the plot.
+        """
+
+        # Construct the graph
+        g = self.construct_graph()
+        # Place the compartments
+        compartments = [comp_name for comp_name in self.compartments]
+        pos = {node: (i, 0) for i, node in enumerate(compartments)}
+        # Create the plot
+        fig, ax = plt.subplots(figsize=(8, 6))  # TODO: figure size based on number of compartments
+        # Draw the compartments and their labels
+        nx.draw_networkx_nodes(
+            g,
+            pos=pos,
+            nodelist=compartments,
+            node_size=node_size,
+            node_shape=node_shape,
+            node_color=node_color,
+            edgecolors=edge_color,
+            linewidths=linewidths
+        )
+        nx.draw_networkx_labels(
+            g,
+            pos=pos,
+            labels={node: node for node in compartments},
+            font_size=font_size
+        )
+        # Update positions to include IN and OUT nodes
+        for i, node in enumerate(compartments):
+            pos[f"{node}_IN"] = (i, 2)
+            pos[f"{node}_OUT"] = (i, -2)
+        # Draw the edges individually
+        for edge in g.edges(data=True):
+            # Determine arrow style based on nature
+            if edge[2]['nature'] == 'unidirectional':
+                arrowstyle = '-|>'
+            elif edge[2]['nature'] == 'bidirectional':
+                arrowstyle = '<|-|>'
+            else:
+                arrowstyle = '-|>'
+            # Determine line style based on nature
+            if edge[2]['nature'] in ['clearance', 'dosage']:
+                style = 'dashed'
+            else:
+                style = 'solid'
+            # Determine if we need curved arrows
+            dist = abs(pos[edge[0]][0] - pos[edge[1]][0])
+            if dist > 1:
+                connection_style = f"arc3,rad={rad}"
+            else:
+                connection_style = "arc3,rad=0.0"
+            nx.draw_networkx_edges(
+                g,
+                pos=pos,
+                edgelist=[edge],
+                width=linewidths,
+                style=style,
+                arrowsize=arrowsize,
+                arrowstyle=arrowstyle,
+                node_size=node_size,
+                connectionstyle=connection_style
+            )
+
+        # Set margins for the axes so that nodes aren't clipped
+        ax = plt.gca()
+        ax.margins(0.1)
+        plt.axis("off")
+        return fig, ax
 
 
 if __name__ == "__main__":
