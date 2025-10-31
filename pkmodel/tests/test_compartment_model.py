@@ -4,7 +4,7 @@ import logging
 import pkmodel as pk
 import numpy as np
 from pydantic import ValidationError
-from pkmodel.CompartmentModel import CompartmentModel, Compartment, Flux, Clearance, Dosage
+from pkmodel.CompartmentModel import Flux, Clearance, Dosage
 
 @pytest.fixture()
 def config_1():
