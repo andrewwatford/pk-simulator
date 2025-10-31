@@ -4,7 +4,6 @@ import logging
 import pkmodel as pk
 import numpy as np
 from pydantic import ValidationError
-from pkmodel.CompartmentModel import Flux, Clearance, Dosage
 
 
 @pytest.fixture()
@@ -81,7 +80,7 @@ def flux_1(comp_1, comp_2):
     Do not set scope to module, session, or class - because fixture will get modified
     by several different unit tests
     """
-    return Flux(id="c_p",
+    return pk.Flux(id="c_p",
                    source=comp_1,
                    dest=comp_2,
                    rate_constant=5.0,
@@ -96,7 +95,7 @@ def clearance_1(comp_1):
     Do not set scope to module, session, or class - because fixture will get modified
     by several different unit tests
     """
-    return Clearance(id='central_clearance',
+    return pk.Clearance(id='central_clearance',
                         source=comp_1,
                         rate_constant=5.0,
                         rate_law="first")
@@ -109,7 +108,7 @@ def dosage_1(comp_1):
     Do not set scope to module, session, or class - because fixture will get modified
     by several different unit tests
     """
-    return Dosage(id='central_dosage',
+    return pk.Dosage(id='central_dosage',
                      dest=comp_1,
                      regime="constant",
                      rate_constant=1.0)
@@ -272,7 +271,7 @@ class TestCompartmentModel:
         """
         # Try to add a flux with an invalid rate law
         with pytest.raises(ValueError):
-            cmodel_1.add_flux(Flux(id='test',
+            cmodel_1.add_flux(pk.Flux(id='test',
                                       source=cmodel_1.compartments['central'],
                                       dest=cmodel_1.compartments['peripheral'],
                                       rate_constant=1,
