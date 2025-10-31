@@ -8,6 +8,7 @@ import itertools
 # Maths + plotting
 from scipy.integrate import solve_ivp
 import matplotlib.pyplot as plt
+import networkx as nx
 import numpy as np
 import xarray as xr
 
@@ -341,6 +342,113 @@ class CompartmentModel:
         axs[-1].set_xlabel('$t$')
         axs[0].set_title('Compartment masses over time')
         return fig, axs
+
+    def construct_graph(self):
+        """Construct a NetworkX graph representation of the compartment model.
+
+        ### Returns:
+            - g: networkx.MultiDiGraph. A directed multigraph representing the compartment model.
+        """
+        # Create the empty directed multigraph
+        g = nx.MultiDiGraph()
+        # Add compartments as nodes, as well as a generic IN and OUT node for each
+        for comp_name, comp in self.compartments.items():
+            g.add_node(comp_name, subset="compartment", **comp.__dict__)
+            g.add_node(f"{comp_name}_IN", subset="in", shape="point")
+            g.add_node(f"{comp_name}_OUT", subset="out", shape="point")
+        # Add fluxes as edges
+        for flux_name, flux in self.fluxes.items():
+            g.add_edge(flux.source.id, flux.dest.id, key=flux_name, **flux.__dict__)
+        # Add clearances as edges
+        for clear_name, clear in self.clearances.items():
+            g.add_edge(clear.source.id, f"{clear.source.id}_OUT", key=clear_name, nature="clearance", **clear.__dict__)
+        # Add dosages as edges
+        for dose_name, dose in self.dosages.items():
+            g.add_edge(f"{dose.dest.id}_IN", dose.dest.id, key=dose_name, nature="dosage", **dose.__dict__)
+        return g
+
+    def draw_basic_graph_pyplot(
+            self,
+            node_shape: str = "o",
+            node_size: int = 4000,
+            font_size: int = 11,
+            node_color: str = "white",
+            edge_color: str = "black",
+            linewidths: int = 2,
+            arrowsize: int = 20,
+            rad: float = 0.35):
+        """Create a basic plot of the compartment model graph.
+
+        ### Returns:
+            - fig: matplotlib.figure.Figure. The figure object containing the plot.
+            - ax: matplotlib.axes.Axes. The axes object for the plot.
+        """
+
+        # Construct the graph
+        g = self.construct_graph()
+        # Place the compartments
+        compartments = [comp_name for comp_name in self.compartments]
+        pos = {node: (i, 0) for i, node in enumerate(compartments)}
+        # Create the plot
+        fig, ax = plt.subplots(figsize=(8, 6))  # TODO: figure size based on number of compartments
+        # Draw the compartments and their labels
+        nx.draw_networkx_nodes(
+            g,
+            pos=pos,
+            nodelist=compartments,
+            node_size=node_size,
+            node_shape=node_shape,
+            node_color=node_color,
+            edgecolors=edge_color,
+            linewidths=linewidths
+        )
+        nx.draw_networkx_labels(
+            g,
+            pos=pos,
+            labels={node: node for node in compartments},
+            font_size=font_size
+        )
+        # Update positions to include IN and OUT nodes
+        for i, node in enumerate(compartments):
+            pos[f"{node}_IN"] = (i, 2)
+            pos[f"{node}_OUT"] = (i, -2)
+        # Draw the edges individually
+        for edge in g.edges(data=True):
+            # Determine arrow style based on nature
+            if edge[2]['nature'] == 'unidirectional':
+                arrowstyle = '-|>'
+            elif edge[2]['nature'] == 'bidirectional':
+                arrowstyle = '<|-|>'
+            else:
+                arrowstyle = '-|>'
+            # Determine line style based on nature
+            if edge[2]['nature'] in ['clearance', 'dosage']:
+                style = 'dashed'
+            else:
+                style = 'solid'
+            # Determine if we need curved arrows
+            dist = abs(pos[edge[0]][0] - pos[edge[1]][0])
+            if dist > 1:
+                connection_style = f"arc3,rad={rad}"
+            else:
+                connection_style = "arc3,rad=0.0"
+            nx.draw_networkx_edges(
+                g,
+                pos=pos,
+                edgelist=[edge],
+                width=linewidths,
+                style=style,
+                arrowsize=arrowsize,
+                arrowstyle=arrowstyle,
+                node_size=node_size,
+                connectionstyle=connection_style
+            )
+
+        # Set margins for the axes so that nodes aren't clipped
+        ax = plt.gca()
+        ax.margins(0.1)
+        plt.axis("off")
+        return fig, ax
 
 
 if __name__ == "__main__":
