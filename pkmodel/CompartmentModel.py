@@ -16,6 +16,10 @@ import xarray as xr
 import warnings
 import logging
 
+# I/O
+from pathlib import Path
+import json
+
 # Module packages
 from pkmodel.builtin_fluxes import constant_dose
 from pkmodel.config_validation import ModelSpec
@@ -273,7 +277,19 @@ And the following clearances (if any):\n\t{"\n\t".join(clr_info)}
                 )
 
         return model
-        
+    
+    @classmethod
+    def from_json(cls, json_path):
+        """Load the model from a json file"""
+        path = Path(json_path)
+        try:
+            with open(path, "r") as f:
+                cfg = json.load(f)
+            return cls.from_config(cfg)
+        except Exception as e:
+            print("Failed to initialise a model from config due to the following error:")
+            print(e)
+    
     def build_numeric_index(self):
         self.comp_index = {comp.id: i for i, comp in enumerate(self.compartments.values())}  # TODO: this may be moved to a separate method in the future
 
@@ -715,4 +731,6 @@ if __name__ == "__main__":
     cent_no_id = Compartment(volume=22)
     print("Compartment created successfully")
     print(cent_no_id)
-    print(model2)
+  
+    model4 = CompartmentModel.from_json("pkmodel/config.json")
+    print(model4)
