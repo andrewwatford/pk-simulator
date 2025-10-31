@@ -102,6 +102,14 @@ import matplotlib.pyplot as plt
 fig, axs = model.plot_all(result)
 plt.savefig('./example.png')
 ```
+## Visulaization
+### Via Graphviz 
+Note: Graphviz needs to be installed from your system's package manager first
+```python
+pip install graphviz
+Fig = model.plot_using_graphviz(filename="compartmentmodel_graphviz")
+plt.savefig("compartmentmodel_graphviz.png")
+```
 
 ## Alternatively, the model can be instantiated using a config dictionary
 ```python
