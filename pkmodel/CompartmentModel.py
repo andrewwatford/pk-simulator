@@ -205,6 +205,8 @@ class CompartmentModel:
 
         return model
         
+    def build_numeric_index(self):
+        self.comp_index = {comp.id: i for i, comp in enumerate(self.compartments.values())} # TODO: this may be moved to a separate method in the future
 
     def build_linear_rhs(self):
         
@@ -212,8 +214,8 @@ class CompartmentModel:
         A = np.zeros((n, n), dtype = float) # RHS coefficient matrix
         b = np.zeros(n, dtype=float) # Constant vector for RHS 
 
-        # Build a numeric index of compartments
-        self.comp_index = {comp.id: i for i, comp in enumerate(self.compartments.values())} # TODO: this may be moved to a separate method in the future
+        # Build numeric index of compartments
+        self.build_numeric_index()
 
         # Fluxes
         for flux in self.fluxes.values():
@@ -321,12 +323,10 @@ class CompartmentModel:
     def generate_markdown(self, filename):
         """
         Generate a .md file to display the system of ODEs
-        ---> In progress: Copilot has done a lot but there is lots to fix
-        - Use symbols for constants, but give values in a table lower down
-        - Use subscripts for compartments as these look much nicer, but link
-        to compartment id in a table lower down
-        - Define terms in equations
         """
+
+        # Build numeric index of compartments
+        self.build_numeric_index()
 
         equations = {}
 
@@ -338,40 +338,74 @@ class CompartmentModel:
                     if (dsg.regime == 'constant') and (dsg.rate_constant == 0):
                         continue
                     elif dsg.regime == 'constant':
-                        eq_terms.append(f"D_0")
+                        eq_terms.append(f"D_{{{i}}}")
                     else:
-                        eq_terms.append(f"Dose(t)")
-            ### Bad from here downwards ###
+                        eq_terms.append(f"D_{{{i}}}(t)")
             # Clearances
             for clr in self.clearances.values():
-                if clr.source.id == comp_id:
-                    if clr.rate_law == 'first':
-                        eq_terms.append(f"- {clr.rate_constant}/V_{{{clr.source.id}}} * q_{{{clr.source.id}}}")
-                    elif clr.rate_law == 'zero':
-                        eq_terms.append(f"- {clr.rate_constant}")
+                if clr.rate_constant != 0:
+                    if clr.source.id == comp_id:
+                        if clr.rate_law == 'first':
+                            eq_terms.append(f"- C_{{{i}}}\\frac{{q_{{{i}}}}}{{V_{{{i}}}}}")
+                        elif clr.rate_law == 'zero':
+                            eq_terms.append(f"- C_{{{i}}}")
             # Fluxes
             for flux in self.fluxes.values():
-                if flux.source.id == comp_id:
-                    if flux.rate_law == 'first':
-                        eq_terms.append(f"- {flux.rate_constant}/V_{{{flux.source.id}}} * q_{{{flux.source.id}}}")
-                    elif flux.rate_law == 'zero':
-                        eq_terms.append(f"- {flux.rate_constant}")
-                if flux.dest.id == comp_id:
-                    if flux.rate_law == 'first':
-                        eq_terms.append(f"+ {flux.rate_constant}/V_{{{flux.source.id}}} * q_{{{flux.source.id}}}")
-                    elif flux.rate_law == 'zero':
-                        eq_terms.append(f"+ {flux.rate_constant}")
+                if flux.rate_constant != 0:
+                    src_idx = self.comp_index[flux.source.id]
+                    dst_idx = self.comp_index[flux.dest.id]
+                    kstring = f"k_{{{src_idx},{dst_idx}}}"
+                    if flux.rate_law == 'zero':
+                        if flux.source.id == comp_id:
+                            eq_terms.append(f"- {kstring}")
+                        elif flux.dest.id == comp_id:
+                            eq_terms.append(f"+ {kstring}")
+                    elif flux.rate_law == 'first':
+                        if flux.nature == 'unidirectional':
+                            if flux.source.id == comp_id:
+                                eq_terms.append(f"- {kstring}\\frac{{q_{{{src_idx}}}}}{{V_{{{src_idx}}}}}")
+                            elif flux.dest.id == comp_id:
+                                eq_terms.append(f"+ {kstring}\\frac{{q_{{{src_idx}}}}}{{V_{{{src_idx}}}}}")
+                        elif (flux.nature == 'bidirectional'):
+                            if flux.source.id == comp_id:
+                                eq_terms.append(f"- {kstring}\\left(\\frac{{q_{{{src_idx}}}}}{{V_{{{src_idx}}}}} - \\frac{{q_{{{dst_idx}}}}}{{V_{{{dst_idx}}}}}\\right)")
+                            if flux.dest.id == comp_id:
+                                eq_terms.append(f"- {kstring}\\left(\\frac{{q_{{{dst_idx}}}}}{{V_{{{dst_idx}}}}} - \\frac{{q_{{{src_idx}}}}}{{V_{{{src_idx}}}}}\\right)")
 
-            equation = " + \n    ".join(eq_terms)
+            if len(eq_terms) == 0:
+                equation = "0"
+            else:
+                equation = "".join(eq_terms)
             equations[comp_id] = f"\\frac{{d q_{{{i}}}}}{{d t}} = {equation}"
 
         with open(f"{filename}.md", "w", encoding="utf-8") as f:
+            # Write equations
+            f.write("### Equations\n---\n")
             for eq in equations.values():
                 f.write(f"\n\n$$\n{eq}\n$$\n\n")
+            # Write table
+            f.write("### Compartments\n---\n")
+            f.write("\n\n| Index | Compartment |\n")
+            f.write("|-------|-------------|\n")
+            for i, comp_id in enumerate(self.compartments.keys()):
+                f.write(f"| {i}     | {comp_id}     |\n")
+            # Define some variables
+            f.write("### Variable definitions\n---\n")
+            f.write("\n\n| Symbol | Quantity |\n")
+            f.write("|-------|-------------|\n")
+            f.write("| $t$ | Time |\n")
+            f.write("| $q_i$ | Mass in compartment i |\n")
+            f.write("| $V_i$ | Volume of compartment i |\n")
+            if len(self.dosages) > 0:
+                f.write("| $D_i$ | Dosage into compartment i |\n")
+            if len(self.clearances) > 0:
+                f.write("| $C_i$ | Clearance rate from compartment i |\n")
+            if len(self.fluxes) > 0:
+                f.write("| $k_{i,j}$ | Rate constant for flux between compartments i and j |\n")
 
 
 
-if False: #__name__ == "__main__":
+if __name__ == "__main__":
     central = Compartment(
         id="central", # TODO make it generate an id if it's not provided?
         volume=22

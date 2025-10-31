@@ -8,9 +8,9 @@ config = {
 
         "fluxes": {
             "c_p": {
-                "source":"central",
-                "dest": "peripheral",
-                "rate_constant": 5.0,
+                "source":"peripheral",
+                "dest": "central",
+                "rate_constant": 25.0,
                 "nature":"bidirectional",
                 "rate_law":"first"
             }
@@ -28,7 +28,7 @@ config = {
             "central_dosage":{
                 "dest":"central",
                 "regime":"custom",
-                "rate_constant": 10,
+                "rate_constant": 0,
             }
         }
     }
