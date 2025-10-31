@@ -48,7 +48,7 @@ class Compartment:
             self.id = f"comp_{next(self._counter):02d}"
 
     def __str__(self):
-        desc = f"Compatment '{self.id}', with a volume of {self.volume:.1f} L"
+        desc = f"Compartment '{self.id}', with a volume of {self.volume:.1f} L"
         return desc
 
 
