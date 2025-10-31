@@ -143,7 +143,9 @@ class TestCompartmentModel:
         Check .add_compartment method works correctly
         """
         cmodel_1.model_changed_since_last_build = False
-        cmodel_1.add_compartment(pk.Compartment('peripheral 2', 30))
+        cmodel_1.add_compartment(pk.Compartment(
+            id='peripheral 2',
+            volume=30))
         assert 'peripheral 2' in cmodel_1.compartments.keys()
         assert cmodel_1.compartments['peripheral 2'].volume == 30
         assert cmodel_1.model_changed_since_last_build is True
