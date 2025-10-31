@@ -172,14 +172,23 @@ class CompartmentModel:
         for dsg in self.dosages.values():
             dsg_info.append(dsg.__str__())
 
+        comp_block = "\n\t".join(comp_info)
+        flux_block = "\n\t".join(flux_info)
+        dsg_block  = "\n\t".join(dsg_info)
+        clr_block  = "\n\t".join(clr_info)
+
         out = f"""
-This is a model containing the following compartments:\n\t{"\n\t".join(comp_info)}
+This is a model containing the following compartments:
+\t{comp_block}
 
-These are connected by the following fluxes (if any):\n\t{"\n\t".join(flux_info)}
+These are connected by the following fluxes (if any):
+\t{flux_block}
 
-With the following dosages(if any):\n\t{"\n\t".join(dsg_info)}
+With the following dosages (if any):
+\t{dsg_block}
 
-And the following clearances (if any):\n\t{"\n\t".join(clr_info)}
+And the following clearances (if any):
+\t{clr_block}
         """
         return out
 
