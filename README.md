@@ -102,14 +102,6 @@ import matplotlib.pyplot as plt
 fig, axs = model.plot_all(result)
 plt.savefig('./example.png')
 ```
-## Visulaization
-### Via Graphviz 
-Note: Graphviz needs to be installed from your system's package manager first
-```python
-pip install graphviz
-Fig = model.plot_using_graphviz(filename="compartmentmodel_graphviz")
-plt.savefig("compartmentmodel_graphviz.png")
-```
 
 ## Alternatively, the model can be instantiated using a config dictionary
 ```python
@@ -168,6 +160,33 @@ result = model.run(t_span, y0)
 #Plots
 fig, axs = model.plot_all(result)
 plt.savefig('./example.png')
+```
+## Visualisation
+### Printing out the model architecture
+```python
+print(model)
+```
+```text
+This is a model containing the following compartments:
+        Compatment 'central', with a volume of 22.0 L
+        Compatment 'peripheral', with a volume of 7.0 L
+
+These are connected by the following fluxes (if any):
+        Flux 'c_p' (bidirectional, first-order, with a rate constant of 5.0), connecting compartments 'central' and 'peripheral'.
+
+With the following dosages(if any):
+        Dosage 'central_dosage' (constant), representing administration to the copmartment 'central'.
+
+And the following clearances (if any):
+        Clearance 'central_clearance' (first-order, with a rate constant of 5.0), representing elimination from the compartment 'central'.
+```
+
+### Via Graphviz 
+Note: Graphviz needs to be installed from your system's package manager first
+```python
+pip install graphviz
+Fig = model.plot_using_graphviz(filename="compartmentmodel_graphviz")
+plt.savefig("compartmentmodel_graphviz.png")
 ```
 
 ## License
