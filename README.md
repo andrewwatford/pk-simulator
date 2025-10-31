@@ -103,66 +103,12 @@ fig, axs = model.plot_all(result)
 plt.savefig('./example.png')
 ```
 
-## Alternatively, the model can be instantiated using a config dictionary
+## Alternatively, the model can be instantiated using a config file
 ```python
-import pkmodel as pk
-import matplotlib.pyplot as plt
-
-
-# Define model config
-config = {
-
-    "compartments": {
-        "central": 22.0,
-        "peripheral": 7.0,
-    },
-
-    "fluxes": {
-        "c_p": {
-            "source":"central",
-            "dest": "peripheral",
-            "rate_constant": 5.0,
-            "nature":"bidirectional",
-            "rate_law":"first"
-        }
-    },
-
-    "clearances": {
-        "central_clearance":{
-            "source":"central",
-            "rate_constant": 5.0,
-            "rate_law":"first"
-        }
-    },
-
-    "dosages": {
-        "central_dosage":{
-            "dest":"central",
-            "regime":"constant",
-            "rate_constant": 1.0,
-        }
-    }
-}
-
-#Instantiate the model object
-model = pk.CompartmentModel.from_config(config)
-
-#Build and solve the model
-model.build_linear_rhs()
-
-#Initial conditions and volumes
-y0 = [0, 0]  # Initial mass in each compartment
-t_span = [0, 30]  # Time span for the simulation
-
-#Run the simulation
-result = model.run(t_span, y0)
-
-#Plots
-fig, axs = model.plot_all(result)
-plt.savefig('./example.png')
+model4 = CompartmentModel.from_json("pkmodel/config.json")
 ```
 Note that at present, time-dependent dosages are only able to be added by creating a `Dosage` object directly, and adding it to the model. For example:
-```
+```python
 central_dsg = Dosage(
     id='central_dsg',
     dest=central,
@@ -171,6 +117,8 @@ central_dsg = Dosage(
 )
 model.add_dosage(central_dsg)
 ```
+Also note that editing the attributes of a `CompartmentModel` instance or its component instances should be done at the user's own risk and may lead to unexpected behaviour (e.g., fluxes that are not linked to existing compartments).
+
 ## Visualisation
 ### Printing out the model architecture
 ```python
