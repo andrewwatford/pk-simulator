@@ -3,6 +3,7 @@ from typing import Sequence, Callable
 from collections import OrderedDict
 from dataclasses import dataclass
 from pydantic import ValidationError
+import itertools
 
 # Maths + plotting
 from scipy.integrate import solve_ivp
@@ -36,21 +37,31 @@ def combine_functions(*funcs):
 @dataclass
 class Compartment:
     """Represents a compartment/reservoir within the organism"""
-    id: str
-    volume: float
+    volume: float = 10.0
+    id: str | None = None
+
+    _counter = itertools.count(1)
+
+    def __post_init__(self):
+        if self.id is None:
+            self.id = f"comp_{next(self._counter):02d}"
 
 
 @dataclass
 class Flux:
     """Represents a flux connecting two compartments"""
-    id: str
     source: Compartment
     dest: Compartment
     rate_constant: float
     rate_law: str = "first"
     nature: str = "bidirectional"
+    id: str | None = None
+
+    _counter = itertools.count(1)
 
     def __post_init__(self):
+        if self.id is None:
+            self.id = f"flux_{next(self._counter):02d}"
         if self.rate_law not in ['first', 'zero']:
             raise ValueError(f"Rate law '{self.rate_law}' is not supported! Supported rate laws are 'first' and 'zero'.")
         if self.nature not in ['unidirectional', 'bidirectional']:
@@ -60,12 +71,16 @@ class Flux:
 @dataclass
 class Clearance:
     """Represents a compound leaving a compartment"""
-    id: str
     source: Compartment
     rate_constant: float
     rate_law: str = 'first'
+    id: str | None = None
+
+    _counter = itertools.count(1)
 
     def __post_init__(self):
+        if self.id is None:
+            self.id = f"clear_{next(self._counter):02d}"
         if self.rate_law not in ['first', 'zero']:
             raise ValueError(f"Rate law '{self.rate_law}' is not supported! Supported rate laws are 'first' and 'zero'.")
 
@@ -73,13 +88,17 @@ class Clearance:
 @dataclass
 class Dosage:
     """Represents a compound entering a compartment"""
-    id: str
     dest: Compartment
     regime: str = 'constant'
     rate_constant: float = 0  # This rate constant is used for the constant dosing regime
     dosage_func: Callable = None
+    id: str | None = None
+
+    _counter = itertools.count(1)
 
     def __post_init__(self):
+        if self.id is None:
+            self.id = f"dose_{next(self._counter):02d}"
         if self.regime not in ['constant', 'custom']:
             raise ValueError(f"Dosage regime '{self.regime}' is not supported! Supported regimes are 'constant' and 'custom'.")
 
@@ -326,16 +345,13 @@ class CompartmentModel:
 
 if __name__ == "__main__":
     central = Compartment(
-        id="central",  # TODO make it generate an id if it's not provided?
         volume=22
     )
     peripheral = Compartment(
-        id="peripheral",
         volume=7
     )
 
     c_p_flux = Flux(
-        id="c_p_flux",
         source=central,
         dest=peripheral,
         rate_constant=5,
@@ -344,14 +360,12 @@ if __name__ == "__main__":
     )
 
     central_clr = Clearance(
-        id="central_clearance",
         source=central,
         rate_constant=5,
         rate_law="first"
     )
 
     central_dsg = Dosage(
-        id="central_dosage",
         dest=central,
         regime="constant",
         rate_constant=1
@@ -459,3 +473,6 @@ if __name__ == "__main__":
         print("They are the same object (identity).")
     else:
         print("Different objects (even if equal by ==).")
+
+    cent_no_id = Compartment(volume=22)
+    print("Compartment created successfully")
