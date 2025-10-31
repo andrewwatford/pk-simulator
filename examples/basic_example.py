@@ -48,3 +48,5 @@ result = model.run(t_span, y0)
 # Plots
 fig, axs = model.plot_all(result)
 plt.savefig('./example.png')
+fig, axs = model.draw_basic_graph()
+plt.savefig('./example_graph.png')

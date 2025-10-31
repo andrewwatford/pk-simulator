@@ -56,3 +56,5 @@ result = model.run(
 # Plots
 fig, axs = model.plot_all(result)
 plt.savefig('./three_cmpt_example.png')
+fig, axs = model.draw_basic_graph()
+plt.savefig('./three_cmpt_example_graph.png')
