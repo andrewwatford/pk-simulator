@@ -367,7 +367,7 @@ class CompartmentModel:
             g.add_edge(f"{dose.dest.id}_IN", dose.dest.id, key=dose_name, nature="dosage", **dose.__dict__)
         return g
 
-    def draw_basic_graph(
+    def draw_basic_graph_pyplot(
             self,
             node_shape: str = "o",
             node_size: int = 4000,

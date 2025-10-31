@@ -57,5 +57,5 @@ result = model.run(t_span, y0)
 # Plots
 fig, axs = model.plot_all(result)
 plt.savefig('./time_dependent_dosage.png')
-fig, axs = model.draw_basic_graph()
+fig, axs = model.draw_basic_graph_pyplot()
 plt.savefig('./time_dependent_dosage_graph.png')
