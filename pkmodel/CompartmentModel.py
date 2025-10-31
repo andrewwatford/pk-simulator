@@ -6,6 +6,7 @@ from pydantic import ValidationError
 import itertools
 
 # Maths + plotting
+from graphviz import Digraph
 from scipy.integrate import solve_ivp
 import matplotlib.pyplot as plt
 import networkx as nx
@@ -523,7 +524,7 @@ And the following clearances (if any):\n\t{"\n\t".join(clr_info)}
             linewidths: int = 2,
             arrowsize: int = 20,
             rad: float = 0.35):
-        """Create a basic plot of the compartment model graph.
+        """Create a basic plot of the compartment model graph using pyplot.
 
         ### Returns:
             - fig: matplotlib.figure.Figure. The figure object containing the plot.
@@ -594,6 +595,49 @@ And the following clearances (if any):\n\t{"\n\t".join(clr_info)}
         ax = plt.gca()
         ax.margins(0.1)
         plt.axis("off")
+        return fig, ax
+    
+    def plot_using_graphviz(self, filename="compartment_model_graphviz"):
+        """
+        Create a basic plot of the compartment model graph using graphviz.
+
+        ### Returns:
+            - fig: matplotlib.figure.Figure. The figure object containing the plot.
+            - ax: matplotlib.axes.Axes. The axes object for the plot.
+        """
+        # Draw a compartment model graph using Graphviz
+        dot = Digraph(comment='Compartment Model')
+        # specify graph attributes
+        dot.attr(rankdir='TB', fixedsize='true', size='11,5', nodesep='1', ranksep='1', fontsize='10', width='0.5', height='0.5')
+        
+        for comp in self.compartments.values():
+            dot.node(comp.id, shape='square', dir='both')
+
+        # Add unidirectional or bidirectional fluxes 
+        for flux in self.fluxes.values():
+            if flux.nature == "bidirectional":
+                dot.edge(flux.source.id, flux.dest.id)
+                dot.edge(flux.dest.id, flux.source.id)
+            else:
+                dot.edge(flux.source.id, flux.dest.id)
+        # Add clearances as edges
+        for clr in self.clearances.values():
+            dot.edge(clr.source.id, 'Clearance')
+        # Add dosages as edges
+        for dsg in self.dosages.values():
+            dot.edge('Dosage', dsg.dest.id)
+        # Have all compartments on the same level
+        with dot.subgraph() as s:
+            s.attr(rank='same')
+            for comp in self.compartments.values():
+                s.node(comp.id, shape='square', dir='both')
+        # Render the graph to a file  
+        dot.render(filename, format='png', cleanup=True)
+        # read the graph for plotting
+        diagram = plt.imread(f"{filename}.png")
+        fig, ax = plt.subplots()
+        ax.imshow(diagram)
+        ax.axis('off')
         return fig, ax
 
 
