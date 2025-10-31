@@ -1,5 +1,5 @@
 ![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)
-![Build](https://img.shields.io/github/actions/workflow/status/yourusername/pk-simulator/tests.yml)
+![Build](https://img.shields.io/github/actions/workflow/status/andrewwatford/pk-simulator/.github/workflows/CI_workflow.yml)
 ![Python](https://img.shields.io/badge/python-3.9%2B-blue)
 # pkmodel: Pharmacokinetic Modelling Library
 
