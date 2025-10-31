@@ -46,6 +46,10 @@ class Compartment:
         if self.id is None:
             self.id = f"comp_{next(self._counter):02d}"
 
+    def __str__(self):
+        desc = f"Compatment '{self.id}', with a volume of {self.volume:.1f} L"
+        return desc
+
 
 @dataclass
 class Flux:
@@ -67,6 +71,10 @@ class Flux:
         if self.nature not in ['unidirectional', 'bidirectional']:
             raise ValueError(f"Nature '{self.nature}' is not supported! Supported natures are 'unidirectional' and 'bidirectional'.")
 
+    def __str__(self):
+        desc = f"Flux '{self.id}' ({self.nature}, {self.rate_law}-order, with a rate constant of {self.rate_constant}), connecting compartments '{self.source.id}' and '{self.dest.id}'."
+        return desc
+
 
 @dataclass
 class Clearance:
@@ -83,6 +91,10 @@ class Clearance:
             self.id = f"clear_{next(self._counter):02d}"
         if self.rate_law not in ['first', 'zero']:
             raise ValueError(f"Rate law '{self.rate_law}' is not supported! Supported rate laws are 'first' and 'zero'.")
+
+    def __str__(self):
+        desc = f"Clearance '{self.id}' ({self.rate_law}-order, with a rate constant of {self.rate_constant}), representing elimination from the compartment '{self.source.id}'."
+        return desc
 
 
 @dataclass
@@ -101,6 +113,10 @@ class Dosage:
             self.id = f"dose_{next(self._counter):02d}"
         if self.regime not in ['constant', 'custom']:
             raise ValueError(f"Dosage regime '{self.regime}' is not supported! Supported regimes are 'constant' and 'custom'.")
+
+    def __str__(self):
+        desc = f"Dosage '{self.id}' ({self.regime}), representing administration to the copmartment '{self.dest.id}'."
+        return desc
 
 
 class CompartmentModel:
@@ -132,6 +148,34 @@ class CompartmentModel:
 
         self.A = None
         self.b = None
+
+    def __str__(self):
+        comp_info = []
+        for comp in self.compartments.values():
+            comp_info.append(comp.__str__())
+
+        flux_info = []
+        for flux in self.fluxes.values():
+            flux_info.append(flux.__str__())
+
+        clr_info = []
+        for clr in self.clearances.values():
+            clr_info.append(clr.__str__())
+
+        dsg_info = []
+        for dsg in self.dosages.values():
+            dsg_info.append(dsg.__str__())
+
+        out = f"""
+This is a model containing the following compartments:\n\t{"\n\t".join(comp_info)}
+
+These are connected by the following fluxes (if any):\n\t{"\n\t".join(flux_info)}
+
+With the following dosages(if any):\n\t{"\n\t".join(dsg_info)}
+
+And the following clearances (if any):\n\t{"\n\t".join(clr_info)}
+        """
+        return out
 
     def add_compartment(self, comp: Compartment):
         if comp.id in self.compartments:
@@ -476,3 +520,5 @@ if __name__ == "__main__":
 
     cent_no_id = Compartment(volume=22)
     print("Compartment created successfully")
+    print(cent_no_id)
+    print(model2)
