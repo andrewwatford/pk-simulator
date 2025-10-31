@@ -33,14 +33,17 @@ It allows users to represent an organism as a set of interacting compartments an
 ## Installation
 ### via pip
 ```bash
-pip install pkmodel
+pip install \
+  --index-url https://test.pypi.org/simple/ \
+  --extra-index-url https://pypi.org/simple \
+  pkmodel-2025==1.0.0
 ```
 
 ### via source
 ```bash
 git clone https://github.com/andrewwatford/pk-simulator.git
 cd pk-simulator
-pip install -e
+pip install -e .
 ```
 
 ## Usage
