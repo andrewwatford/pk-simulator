@@ -394,7 +394,7 @@ class CompartmentModel:
             f.write("\n\n| Symbol | Quantity |\n")
             f.write("|-------|-------------|\n")
             f.write("| $t$ | Time |\n")
-            f.write("| $q_i$ | Mass in compartment i |\n")
+            f.write("| $q_i$ | Mass of drug in compartment i |\n")
             f.write("| $V_i$ | Volume of compartment i |\n")
             if len(self.dosages) > 0:
                 f.write("| $D_i$ | Dosage into compartment i |\n")
