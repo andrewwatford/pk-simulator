@@ -4,7 +4,7 @@
 # pkmodel: Pharmacokinetic Modelling Library
 
 pkmodel is a Python library for creating, solving, and visualising pharmacokinetic (PK) models.
-It allows the user to represent an organism as a set of interacting compartments and simulate the movement of substances between them over time. 
+It allows users to represent an organism as a set of interacting compartments and simulate the movement of substances between them over time. 
 
 ## Table of Contents
 - [Library Features](#library-features)
@@ -20,7 +20,7 @@ It allows the user to represent an organism as a set of interacting compartments
 ### Mass transfer and elimination
 - Add **fluxes** to describe one-way or bidirectional flows between compartments. 
 - Add **clearances** to describe the elimination process.
-- Define **dosage regimens** to represent substance administration (continuous, bolus, or custom time-dependent inputs)
+- Define **dosage regimens** to represent substance administration (continuous, bolus, or custom time-dependent inputs).
 ### Rate laws
 - Both **first-order** and **zero-order** kinetics supported, in addition to custom time-dependent dosage regimens.
 ### Automatic ODE construction
@@ -37,7 +37,7 @@ It allows the user to represent an organism as a set of interacting compartments
 ### via source
      git clone https://github.com/andrewwatford/pk-simulator.git
      cd pk-simulator
-     pip install –e
+     pip install -e
 
 ## Usage
 
@@ -50,8 +50,8 @@ model = pk.CompartmentModel()
 
 ### Add compartments to the model
 ```python
-central = Compartment(volume=22)
-peripheral = Compartment(volume=7)
+central = pk.Compartment(volume=22)
+peripheral = pk.Compartment(volume=7)
 
 model.add_compartment(central)
 model.add_compartment(peripheral)
@@ -59,7 +59,7 @@ model.add_compartment(peripheral)
 
 ### Add fluxes
 ```python
-c_p_flux = Flux(
+c_p_flux = pk.Flux(
         source=central,
         dest=peripheral,
         nature="bidirectional",
@@ -72,13 +72,13 @@ model.add_flux(c_p_flux)
 
 ### Add dosages and clearances
 ```python
-central_clr = Clearance(
+central_clr = pk.Clearance(
         source=central,
         rate_constant=5,
         rate_law="first"
     )
 
-central_dsg = Dosage(
+central_dsg = pk.Dosage(
     dest=central,
     regime="constant",
     rate_constant=1
@@ -105,7 +105,7 @@ plt.savefig('./example.png')
 
 ## Alternatively, the model can be instantiated using a config file
 ```python
-model4 = CompartmentModel.from_json("pkmodel/config.json")
+model4 = pk.CompartmentModel.from_json("pkmodel/config.json")
 ```
 Note that at present, time-dependent dosages are only able to be added by creating a `Dosage` object directly, and adding it to the model. For example:
 ```python
@@ -165,7 +165,7 @@ fig, axs = model.draw_basic_graph_pyplot()
 Note: Graphviz needs to be installed from your system's package manager (apt-get, etc.) first
 ```python
 pip install graphviz
-Fig = model.plot_using_graphviz(filename="compartmentmodel_graphviz")
+fig = model.plot_using_graphviz(filename="compartmentmodel_graphviz")
 plt.savefig("compartmentmodel_graphviz.png")
 ```
 
