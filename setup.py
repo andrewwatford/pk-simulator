@@ -34,15 +34,16 @@ def get_readme():
 # Go!
 setup(
     # Module name (lowercase)
-    name='pkmodel',
+    name='pkmodel-2025',
 
     # Version
     version=get_version(),
 
     description='pkmodel is a library for creating, solving, and visualising pharmacokinetic (PK) models. It allows the user to represent an organism as a set of interacting compartments and simulate the movement of substances between them over time. ',
+    long_description_content_type='text/markdown',
 
     long_description=get_readme(),
-
+    
     license='MIT license',
 
     author='Andrew Watford, Salma Amin, Stas Kurass, Ambre Brabant',
@@ -74,7 +75,7 @@ setup(
             # Sphinx for doc generation. Version 1.7.3 has a bug:
             'sphinx>=1.5, !=1.7.3',
             # Nice theme for docs
-            'sphinx_rtd_theme',
+            'sphinx-rtd-theme', 'sphinx-autodoc-typehints', 'sphinx-book-theme'
         ],
         'dev': [
             # Flake8 for code style checking
