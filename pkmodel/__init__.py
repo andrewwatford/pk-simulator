@@ -1,8 +1,6 @@
-"""pkmodel is a Pharmokinetic modelling library.
-
-It contains functionality for creating, solving, and visualising the solution
-of Parmokinetic (PK) models
-
+"""
+pkmodel is a Python library for creating, solving, and visualising pharmacokinetic (PK) models.
+It allows the user to represent an organism as a set of interacting compartments and simulate the movement of substances between them over time. 
 """
 # Import version info
 from .version_info import VERSION_INT, VERSION  # noqa
