@@ -105,7 +105,7 @@ plt.savefig('./example.png')
 
 ## Alternatively, the model can be instantiated using a config file
 ```python
-model4 = pk.CompartmentModel.from_json("pkmodel/config.json")
+model = pk.CompartmentModel.from_json("pkmodel/config.json")
 ```
 Note that at present, time-dependent dosages are only able to be added by creating a `Dosage` object directly, and adding it to the model. For example:
 ```python
