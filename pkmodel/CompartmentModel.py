@@ -231,7 +231,7 @@ class CompartmentModel:
         return model
         
     def build_numeric_index(self):
-        self.comp_index = {comp.id: i for i, comp in enumerate(self.compartments.values())} # TODO: this may be moved to a separate method in the future
+        self.comp_index = {comp.id: i for i, comp in enumerate(self.compartments.values())}  # TODO: this may be moved to a separate method in the future
 
     def build_linear_rhs(self):
         n = len(self.compartments)
@@ -428,7 +428,6 @@ class CompartmentModel:
                 f.write("| $C_i$ | Clearance rate from compartment i |\n")
             if len(self.fluxes) > 0:
                 f.write("| $k_{i,j}$ | Rate constant for flux between compartments i and j |\n")
-
 
     def construct_graph(self):
         """Construct a NetworkX graph representation of the compartment model.
