@@ -148,4 +148,3 @@ for name, config in zip(['intravenous_bolus', 'subcutaneous', 'physiologically_b
                         [config_simple_intravenous_bolus, config_simple_subcutaneous, config_physiological]):
     model = pk.CompartmentModel.from_config(config)
     model.generate_markdown(f"example_markdown_{name}")
-
