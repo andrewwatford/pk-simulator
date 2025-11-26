@@ -407,6 +407,8 @@ And the following clearances (if any):
         """
         num_compartments = len(self.compartments)
         fig, axs = plt.subplots(num_compartments, 1, sharex=True)
+        if num_compartments == 1:
+            axs = [axs]  # Make axs iterable
         for idx, name in enumerate(self.compartments.keys()):
             ds[name].plot(ax=axs[idx])
             axs[idx].set_ylabel(f'$q_{{{name}}}$')
